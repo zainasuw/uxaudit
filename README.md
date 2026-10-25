@@ -12,7 +12,7 @@ Everything runs on your own computer. Nothing is uploaded, and results are store
 ## Install
 
 ```bash
-git clone <this repository>
+git clone https://github.com/zainasuw/uxaudit.git
 cd uxaudit
 npm install
 npx playwright install chromium   # downloads the browser used for screenshots (skip if you already have it)
@@ -25,7 +25,7 @@ npm run build
 npm start
 ```
 
-Then open http://127.0.0.1:3131/ in your browser, type a website address such as `tacoma.uw.edu`, and click **Analyze**. Press Ctrl+C in the terminal to stop.
+Then open http://localhost:3131/ in your browser, type a website address such as `tacoma.uw.edu`, and click **Analyze**. The app runs only on your own machine. Press Ctrl+C in the terminal to stop.
 
 To use a different port: `PORT=4000 npm start`.
 

@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { analyzeUrl, AnalyzeError, closeBrowser, type AuditResult } from "./analyze.js";
-import { createStore, summarize, type AuditSummary, type Store } from "./store.js";
+import { createStore, type AuditSummary, type Store } from "./store.js";
 import { parseTargetUrl, type Lookup } from "./url-guard.js";
 
 export interface ServerOptions {
@@ -216,5 +216,3 @@ export async function startServer(opts: ServerOptions = {}) {
     },
   };
 }
-
-export { summarize };

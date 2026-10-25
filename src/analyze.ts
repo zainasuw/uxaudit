@@ -1,6 +1,6 @@
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { collectMobileFacts, collectPageFacts, evaluateChecks, type CheckResult, type MobileFacts, type PageFacts } from "./checks.js";
-import { BlockedUrlError, createHostGuard, parseTargetUrl, type HostGuard, type Lookup } from "./url-guard.js";
+import { createHostGuard, parseTargetUrl, type HostGuard, type Lookup } from "./url-guard.js";
 
 export interface Screenshots {
   desktop: Buffer;
@@ -211,5 +211,3 @@ export async function analyzeUrl(input: unknown, opts: AnalyzeOptions = {}): Pro
     await mobileContext?.close().catch(() => undefined);
   }
 }
-
-export { BlockedUrlError };
