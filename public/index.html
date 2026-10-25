@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UXAudit</title>
+  <meta name="description" content="Paste a public web address to get desktop and mobile screenshots and a short report of real interface checks.">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="masthead">
+    <div class="wrap masthead__inner">
+      <a class="wordmark" href="/">UXAudit</a>
+      <p class="masthead__tagline">Screenshots and real checks for any public web page.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="intake" aria-labelledby="intake-title">
+      <h1 id="intake-title" class="intake__title">See how a page looks on desktop and phone, and what a browser can prove about it.</h1>
+      <form id="form" class="intake__form" autocomplete="off">
+        <label class="visually-hidden" for="url">Website address</label>
+        <input id="url" class="intake__input" type="text" inputmode="url" placeholder="example.com or https://example.com/page" spellcheck="false" required>
+        <button id="analyze" class="button" type="submit">Analyze</button>
+      </form>
+      <p class="intake__hint">Public websites only. Local and private addresses are refused. Some sites block automated visitors; if that happens you'll see a clear message.</p>
+      <div id="status" class="status" hidden role="status" aria-live="polite"></div>
+    </section>
+
+    <section id="report" class="report" hidden aria-labelledby="report-title">
+      <header class="report__head">
+        <div>
+          <h2 id="report-title" class="report__title"></h2>
+          <p class="report__meta"><a id="report-url" class="report__url" target="_blank" rel="noopener noreferrer"></a> <span id="report-time"></span></p>
+        </div>
+        <p id="report-notes" class="report__notes"></p>
+      </header>
+
+      <div class="shots">
+        <figure class="shot shot--desktop">
+          <figcaption class="shot__caption">Desktop · 1280 × 800 <a id="full-link" target="_blank" rel="noopener noreferrer">Open full page</a></figcaption>
+          <div class="shot__frame"><img id="shot-desktop" alt="Desktop screenshot of the analyzed page"></div>
+        </figure>
+        <figure class="shot shot--mobile">
+          <figcaption class="shot__caption">Phone · 390 × 844</figcaption>
+          <div class="shot__frame shot__frame--phone"><img id="shot-mobile" alt="Mobile screenshot of the analyzed page"></div>
+        </figure>
+      </div>
+
+      <section class="checks" aria-labelledby="checks-title">
+        <div class="checks__head">
+          <h3 id="checks-title" class="checks__title">Checks</h3>
+          <p id="checks-summary" class="checks__summary"></p>
+        </div>
+        <p class="checks__intro">Each check states a fact the browser observed on this page, what it means for visitors, and what to change. These are structural checks, not a judgement of the design.</p>
+        <ol id="checks" class="checks__list"></ol>
+      </section>
+    </section>
+
+    <section class="recent" aria-labelledby="recent-title">
+      <h2 id="recent-title" class="recent__title">Recent audits</h2>
+      <ul id="recent" class="recent__list"></ul>
+      <p id="recent-empty" class="recent__empty">Nothing yet. Audits are stored on this computer only.</p>
+    </section>
+  </main>
+
+  <template id="check-row">
+    <li class="check">
+      <details class="check__details">
+        <summary class="check__summary">
+          <span class="check__status"></span>
+          <span class="check__text"><span class="check__title"></span><span class="check__line"></span></span>
+        </summary>
+        <div class="check__body">
+          <p class="check__meaning"></p>
+          <p class="check__fix"><strong>What to change.</strong> <span></span></p>
+          <ul class="check__examples"></ul>
+        </div>
+      </details>
+    </li>
+  </template>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>
