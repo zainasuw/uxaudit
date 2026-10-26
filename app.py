@@ -78,30 +78,50 @@ def wait_for_node(proc: subprocess.Popen, timeout: float = 120) -> None:
 
 
 def serve_relay(proc: subprocess.Popen) -> None:
-    """Forwards every request on the public port to the Node server unchanged."""
+    """Forwards every request on the public port to the Node server.
+
+    The Space's edge proxy appends the real client address as the LAST
+    X-Forwarded-For entry, which is what the Node server reads (TRUST_PROXY).
+    The relay forwards that header untouched and never adds its own hop, so a
+    client cannot choose its own address. Paths are forwarded byte-for-byte,
+    request bodies are capped, and responses stream through.
+    """
     import httpx
     import uvicorn
     from fastapi import FastAPI, Request, Response
+    from fastapi.responses import StreamingResponse
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     client = httpx.AsyncClient(base_url=f"http://127.0.0.1:{INTERNAL_PORT}", timeout=httpx.Timeout(190.0))
-    skip_request = {"host", "content-length", "connection", "transfer-encoding"}
+    skip_request = {"host", "content-length", "connection", "transfer-encoding", "x-real-ip", "forwarded"}
     skip_response = {"content-encoding", "transfer-encoding", "connection", "content-length"}
+    max_body = 2 * 1024 * 1024  # the Node server itself accepts at most 16 KB of JSON
 
     @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH"])
     async def relay(path: str, request: Request) -> Response:
+        declared = request.headers.get("content-length")
+        if declared is not None and (not declared.isdigit() or int(declared) > max_body):
+            return Response("Request body too large.", status_code=413, media_type="text/plain")
         body = await request.body()
+        if len(body) > max_body:
+            return Response("Request body too large.", status_code=413, media_type="text/plain")
         headers = {k: v for k, v in request.headers.items() if k.lower() not in skip_request}
-        url = "/" + path + (f"?{request.url.query}" if request.url.query else "")
+        # Forward the request target exactly as received, without re-decoding it.
+        raw_path = request.scope.get("raw_path", b"/").decode("latin-1") or "/"
+        query = request.scope.get("query_string", b"").decode("latin-1")
+        target = raw_path + (f"?{query}" if query else "")
         try:
-            upstream = await client.request(request.method, url, content=body, headers=headers)
+            upstream_request = client.build_request(request.method, target, content=body, headers=headers)
+            upstream = await client.send(upstream_request, stream=True)
         except httpx.HTTPError:
             return Response("UXAudit is starting or restarting. Try again in a moment.", status_code=503, media_type="text/plain")
-        return Response(
-            content=upstream.content,
+        response_headers = {k: v for k, v in upstream.headers.items() if k.lower() not in skip_response}
+        return StreamingResponse(
+            upstream.aiter_raw(),
             status_code=upstream.status_code,
-            headers={k: v for k, v in upstream.headers.items() if k.lower() not in skip_response},
+            headers=response_headers,
             media_type=upstream.headers.get("content-type"),
+            background=None,
         )
 
     def watch() -> None:
@@ -110,7 +130,7 @@ def serve_relay(proc: subprocess.Popen) -> None:
         os._exit(1)
 
     threading.Thread(target=watch, daemon=True).start()
-    uvicorn.run(app, host="0.0.0.0", port=PUBLIC_PORT, log_level="warning")
+    uvicorn.run(app, host="0.0.0.0", port=PUBLIC_PORT, log_level="warning", proxy_headers=False)
 
 
 def main() -> None:
