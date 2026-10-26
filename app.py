@@ -166,7 +166,7 @@ def serve_relay(proc: subprocess.Popen) -> None:
         button = gr.Button("unused")
         output = gr.Textbox()
         button.click(_gpu_probe, None, output)
-    demo.launch(prevent_thread_lock=True, server_name="0.0.0.0", server_port=PUBLIC_PORT, quiet=True)
+    demo.launch(prevent_thread_lock=True, server_name="0.0.0.0", server_port=PUBLIC_PORT, quiet=True, ssr_mode=False)
     server_app = demo.server_app
     relay_route = [r for r in app.router.routes if isinstance(r, Route)][0]
     server_app.router.routes.insert(0, relay_route)
