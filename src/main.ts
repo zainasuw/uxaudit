@@ -1,13 +1,45 @@
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { startServer } from "./server.js";
+
+// Minimal .env loader (no dependency): KEY=value lines, existing env wins.
+async function loadDotEnv(): Promise<void> {
+  const file = fileURLToPath(new URL("../.env", import.meta.url));
+  const text = await readFile(file, "utf8").catch(() => "");
+  for (const line of text.split(/\r?\n/)) {
+    const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line);
+    if (match && process.env[match[1]!] === undefined) process.env[match[1]!] = match[2]!.replace(/^["']|["']$/g, "");
+  }
+}
+
+await loadDotEnv();
 
 const port = Number(process.env.PORT ?? 3131);
 if (!Number.isInteger(port) || port < 0 || port > 65535) {
   console.error(`uxaudit: invalid PORT ${process.env.PORT}`);
   process.exit(1);
 }
+// Render exposes the public host name automatically; an explicit ALLOWED_HOSTS wins.
+const hosting = (process.env.ALLOWED_HOSTS ?? process.env.RENDER_EXTERNAL_HOSTNAME ?? "").trim();
+const server = await startServer({
+  port,
+  host: process.env.HOST ?? (hosting ? "0.0.0.0" : "127.0.0.1"),
+  allowedHosts: hosting ? hosting.split(",").map((h) => h.trim()).filter(Boolean) : [],
+  trustProxy: process.env.TRUST_PROXY === "1",
+  geminiApiKey: process.env.GEMINI_API_KEY || undefined,
+  geminiModel: process.env.GEMINI_MODEL || undefined,
+  chromiumSandbox: process.env.CHROMIUM_SANDBOX !== "0",
+  storeDir: process.env.UXAUDIT_STORE_DIR || undefined,
+  log: (m) => console.log(`  ${m}`),
+});
 
-const server = await startServer({ port, log: (m) => console.log(`  ${m}`) });
-console.log(`\nUXAudit is running at ${server.url}\nAudits are stored in ${server.store.dir}\nPress Ctrl+C to stop.\n`);
+console.log(
+  `\nUXAudit is running at ${server.url}\n` +
+    `AI review: ${server.reviewEnabled ? `enabled (instruction from ${server.instructionSource})` : "disabled (set GEMINI_API_KEY and REVIEW_INSTRUCTION to enable)"}\n` +
+    `Audits are stored in ${server.store.dir} for ${server.limits.retentionHours} hours\n` +
+    (process.env.CHROMIUM_SANDBOX === "0" ? "WARNING: the Chromium sandbox is disabled.\n" : "") +
+    `Press Ctrl+C to stop.\n`,
+);
 
 let closing = false;
 const shutdown = async () => {

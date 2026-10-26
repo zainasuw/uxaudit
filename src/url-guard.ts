@@ -82,8 +82,16 @@ export function isPrivateIp(ip: string): boolean {
   if (g0 === 0x64 && g1 === 0xff9b && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0) {
     return isPrivateIp(`${g6 >> 8}.${g6 & 0xff}.${g7 >> 8}.${g7 & 0xff}`); // NAT64
   }
+  if (isZero && g5 === 0) {
+    return isPrivateIp(`${g6 >> 8}.${g6 & 0xff}.${g7 >> 8}.${g7 & 0xff}`); // ::a.b.c.d IPv4-compatible (deprecated)
+  }
+  if (g0 === 0x2002) {
+    return isPrivateIp(`${g1 >> 8}.${g1 & 0xff}.${g2 >> 8}.${g2 & 0xff}`); // 6to4 embeds the IPv4 address
+  }
+  if (g0 === 0x2001 && g1 === 0) return true; // Teredo: embeds addresses we cannot vet
   if ((g0 & 0xfe00) === 0xfc00) return true; // fc00::/7 unique local
   if ((g0 & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
+  if ((g0 & 0xffc0) === 0xfec0) return true; // fec0::/10 site-local (deprecated)
   if (g0 === 0x2001 && g1 === 0x0db8) return true; // documentation
   if ((g0 & 0xff00) === 0xff00) return true; // multicast
   return false;
@@ -140,6 +148,25 @@ export const systemLookup: Lookup = async (hostname) => {
  */
 export type HostVerdict = "public" | "private" | "unresolvable";
 
+export const LOOKUP_TIMEOUT_MS = 10_000;
+
+/** A lookup that never answers must not stall an audit; after the timeout the host counts as unresolvable. */
+export function lookupWithTimeout(lookup: Lookup, hostname: string, timeoutMs = LOOKUP_TIMEOUT_MS): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("DNS lookup timed out")), timeoutMs);
+    lookup(hostname).then(
+      (addresses) => {
+        clearTimeout(timer);
+        resolve(addresses);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 export function createHostGuard(lookup: Lookup = systemLookup) {
   const cache = new Map<string, Promise<HostVerdict>>();
   async function classify(hostname: string): Promise<HostVerdict> {
@@ -148,7 +175,7 @@ export function createHostGuard(lookup: Lookup = systemLookup) {
     if (isBlockedHostname(host)) return "private";
     let pending = cache.get(host);
     if (!pending) {
-      pending = lookup(host)
+      pending = lookupWithTimeout(lookup, host)
         .then((addresses): HostVerdict => {
           if (addresses.length === 0) return "unresolvable";
           return addresses.every((a) => !isPrivateIp(a)) ? "public" : "private";

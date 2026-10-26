@@ -1,7 +1,10 @@
 node_modules/
 dist/
 .env
-.env.*
+.env.local
+.env.*.local
 *.log
 .DS_Store
 test/.tmp/
+# The review instruction is private; the server reads it from REVIEW_INSTRUCTION or REVIEW_INSTRUCTION_FILE in production.
+prompts/

@@ -4,26 +4,26 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>UXAudit</title>
-  <meta name="description" content="Paste a public web address to get desktop and mobile screenshots and a short report of real interface checks.">
+  <meta name="description" content="Paste a public web address and get a candid AI critique of its UI and UX design, with desktop and phone screenshots and the measured facts behind it.">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <header class="masthead">
     <div class="wrap masthead__inner">
       <a class="wordmark" href="/">UXAudit</a>
-      <p class="masthead__tagline">Screenshots and real checks for any public web page.</p>
+      <p class="masthead__tagline">AI design review for any public web page.</p>
     </div>
   </header>
 
   <main class="wrap">
     <section class="intake" aria-labelledby="intake-title">
-      <h1 id="intake-title" class="intake__title">See how a page looks on desktop and phone, and what a browser can prove about it.</h1>
+      <h1 id="intake-title" class="intake__title">Paste a web address. Get a candid critique of the page's UI and UX design.</h1>
       <form id="form" class="intake__form" autocomplete="off">
         <label class="visually-hidden" for="url">Website address</label>
         <input id="url" class="intake__input" type="text" inputmode="url" placeholder="example.com or https://example.com/page" spellcheck="false" required>
-        <button id="analyze" class="button" type="submit">Analyze</button>
+        <button id="analyze" class="button" type="submit">Review design</button>
       </form>
-      <p class="intake__hint">Public websites only. Local and private addresses are refused. Some sites block automated visitors; if that happens you'll see a clear message.</p>
+      <p class="intake__hint">Takes about twenty seconds: desktop and phone screenshots, measured checks, then the design review. Public websites only; some sites block automated visitors, and you'll see a clear message if that happens.</p>
       <div id="status" class="status" hidden role="status" aria-live="polite"></div>
     </section>
 
@@ -42,27 +42,69 @@
           <div class="shot__frame"><img id="shot-desktop" alt="Desktop screenshot of the analyzed page"></div>
         </figure>
         <figure class="shot shot--mobile">
-          <figcaption class="shot__caption">Phone · 390 × 844</figcaption>
+          <figcaption class="shot__caption">Phone · 390 × 844 <a id="full-link-mobile" target="_blank" rel="noopener noreferrer">Open full page</a></figcaption>
           <div class="shot__frame shot__frame--phone"><img id="shot-mobile" alt="Mobile screenshot of the analyzed page"></div>
         </figure>
       </div>
 
+      <section id="review" class="review" aria-labelledby="review-title">
+        <div class="review__head">
+          <h3 id="review-title" class="review__title">Design review</h3>
+          <p class="review__intro">Written by an AI design critic from the two screenshots and the measured checks. It is a design judgement, not a usability study or an accessibility certification, and it can be wrong.</p>
+        </div>
+        <div id="review-status" class="status" hidden role="status" aria-live="polite"></div>
+        <div id="review-retry" class="review__idle" hidden>
+          <button id="review-button" class="button" type="button">Retry AI review</button>
+        </div>
+        <article id="review-body" class="review__body" hidden>
+          <div class="review__score">
+            <p class="review__number"><span id="review-score"></span><span class="review__outof">/10</span></p>
+            <p id="review-reason" class="review__reason"></p>
+          </div>
+          <div class="review__columns">
+            <section class="review__group" aria-labelledby="review-strengths-title">
+              <h4 id="review-strengths-title" class="review__group-title">What works</h4>
+              <ul id="review-strengths" class="review__items"></ul>
+            </section>
+            <section class="review__group" aria-labelledby="review-weaknesses-title">
+              <h4 id="review-weaknesses-title" class="review__group-title">What doesn't</h4>
+              <ul id="review-weaknesses" class="review__items"></ul>
+            </section>
+          </div>
+          <section class="review__group" aria-labelledby="review-limits-title">
+            <h4 id="review-limits-title" class="review__group-title">What could not be assessed</h4>
+            <ul id="review-limits" class="review__limits"></ul>
+          </section>
+          <p id="review-meta" class="review__meta"></p>
+        </article>
+      </section>
       <section class="checks" aria-labelledby="checks-title">
         <div class="checks__head">
-          <h3 id="checks-title" class="checks__title">Checks</h3>
+          <h3 id="checks-title" class="checks__title">Measured checks</h3>
           <p id="checks-summary" class="checks__summary"></p>
         </div>
-        <p class="checks__intro">Each check states a fact the browser observed on this page, what it means for visitors, and what to change. These are structural checks, not a judgement of the design.</p>
+        <p class="checks__intro">Facts the browser verified on this page, with what each means for visitors and what to change. These are measured, not judged; the design review above is the judgement.</p>
         <ol id="checks" class="checks__list"></ol>
       </section>
+
     </section>
 
     <section class="recent" aria-labelledby="recent-title">
       <h2 id="recent-title" class="recent__title">Recent audits</h2>
       <ul id="recent" class="recent__list"></ul>
-      <p id="recent-empty" class="recent__empty">Nothing yet. Audits are stored on this computer only.</p>
+      <p id="recent-empty" class="recent__empty">Nothing yet. This list is kept in your browser; audits are deleted from the server after 24 hours.</p>
     </section>
   </main>
+
+  <template id="review-item">
+    <li class="review__item">
+      <p class="review__item-title"><span class="review__item-priority"></span><span class="review__item-name"></span></p>
+      <p class="review__item-location"></p>
+      <p class="review__item-evidence"></p>
+      <p class="review__item-why"></p>
+      <p class="review__item-rec" hidden></p>
+    </li>
+  </template>
 
   <template id="check-row">
     <li class="check">
