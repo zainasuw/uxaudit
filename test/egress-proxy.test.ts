@@ -40,7 +40,7 @@ describe("egress proxy", () => {
     lookups.push(host);
     if (host === "fixture.test") return ["127.0.0.1"];
     if (host === "public.example") return ["93.184.216.34"];
-    if (host === "rebind.example") return ["93.184.216.34", "10.0.0.1"];
+    if (host === "rebind.example" || host === "rebind2.example") return ["93.184.216.34", "10.0.0.1"];
     throw new Error("ENOTFOUND");
   };
 
@@ -59,6 +59,12 @@ describe("egress proxy", () => {
       assert.match(line, /403|closed/, target);
     }
     assert.ok(proxy.stats().refused >= 6);
+  });
+
+  it("refuses a host whose answer mixes public and private addresses, and resolves each host once", async () => {
+    assert.match(await connectVia(proxy.port, "rebind2.example:443"), /403/);
+    assert.match(await connectVia(proxy.port, "rebind2.example:443"), /403/);
+    assert.equal(lookups.filter((h) => h === "rebind2.example").length, 1, "second attempt reused the first lookup");
   });
 
   it("refuses unusual ports even for public hosts", async () => {

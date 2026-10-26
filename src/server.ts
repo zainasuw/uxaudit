@@ -176,8 +176,11 @@ export async function startServer(opts: ServerOptions = {}) {
 
   function clientOf(req: http.IncomingMessage): string {
     if (opts.trustProxy) {
-      const forwarded = String(req.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim();
-      if (forwarded) return forwarded;
+      // The trusted reverse proxy appends the real client address LAST; earlier
+      // entries are whatever the client chose to send and cannot be trusted.
+      const forwarded = String(req.headers["x-forwarded-for"] ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+      const last = forwarded.at(-1);
+      if (last) return last;
     }
     return req.socket.remoteAddress ?? "unknown";
   }

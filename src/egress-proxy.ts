@@ -8,7 +8,7 @@
 import http from "node:http";
 import net from "node:net";
 import type { AddressInfo } from "node:net";
-import { createHostGuard, isPrivateIp, lookupWithTimeout, systemLookup, type Lookup } from "./url-guard.js";
+import { isBlockedHostname, isPrivateIp, lookupWithTimeout, systemLookup, type Lookup } from "./url-guard.js";
 
 export interface EgressProxyOptions {
   /** Tests only: let loopback through (the fixture server lives there). */
@@ -37,7 +37,6 @@ const DEFAULT_PORTS = [80, 443, 8080, 8443];
 
 export async function startEgressProxy(opts: EgressProxyOptions = {}): Promise<EgressProxy> {
   const lookup = opts.lookup ?? systemLookup;
-  const guard = createHostGuard(lookup);
   const allowedPorts = new Set(opts.allowedPorts ?? DEFAULT_PORTS);
   const maxConnections = opts.maxConnections ?? 64;
   const log = opts.log ?? (() => undefined);
@@ -50,6 +49,19 @@ export async function startEgressProxy(opts: EgressProxyOptions = {}): Promise<E
     if (failures.size > 500) failures.delete(failures.keys().next().value!);
   };
 
+  const RESOLVE_TTL_MS = 60_000;
+  const resolved = new Map<string, { addresses: string[]; at: number }>();
+
+  /** One lookup per host (reused briefly), so the addresses we vet are the addresses we connect to. */
+  async function resolveOnce(host: string): Promise<string[]> {
+    const cached = resolved.get(host);
+    if (cached && Date.now() - cached.at < RESOLVE_TTL_MS) return cached.addresses;
+    const addresses = await lookupWithTimeout(lookup, host).catch(() => []);
+    resolved.set(host, { addresses, at: Date.now() });
+    if (resolved.size > 1000) resolved.delete(resolved.keys().next().value!);
+    return addresses;
+  }
+
   /** Resolve a hostname to the single IP we will connect to, or null when refused. */
   async function pin(hostname: string, port: number): Promise<string | null> {
     const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
@@ -60,13 +72,15 @@ export async function startEgressProxy(opts: EgressProxyOptions = {}): Promise<E
       return host;
     }
     if (trusted) {
-      const addresses = await lookupWithTimeout(lookup, host).catch(() => []);
+      const addresses = await resolveOnce(host);
       return addresses[0] ?? null;
     }
-    if ((await guard.classify(host)) !== "public") return null;
-    const addresses = await lookupWithTimeout(lookup, host).catch(() => []);
-    const first = addresses.find((a) => !isPrivateIp(a));
-    return first ?? null;
+    if (isBlockedHostname(host)) return null;
+    const addresses = await resolveOnce(host);
+    // Every address must be public (a hostile DNS answer mixing public and
+    // private addresses is refused outright), and we connect to one of exactly these.
+    if (addresses.length === 0 || addresses.some((a) => isPrivateIp(a))) return null;
+    return addresses[0] ?? null;
   }
 
   const server = http.createServer(async (req, res) => {

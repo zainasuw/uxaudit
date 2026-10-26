@@ -1,12 +1,13 @@
 # Chromium plus every system library Playwright needs, matching the pinned Playwright version.
 FROM mcr.microsoft.com/playwright:v1.58.2-noble
 
-# Hosted defaults: Hugging Face Spaces expects port 7860 and runs behind a proxy;
-# containers cannot use Chromium's user-namespace sandbox, so the container is the boundary.
+# Hosted defaults: Hugging Face Spaces expects port 7860 and places exactly one reverse proxy
+# in front of the container, so the real client is the last X-Forwarded-For entry (TRUST_PROXY=1).
+# Do not expose this container directly to the internet without turning TRUST_PROXY off.
+# The Chromium sandbox stays on; the app falls back (and logs) only if the host cannot run it.
 ENV NODE_ENV=production \
     PORT=7860 \
     TRUST_PROXY=1 \
-    CHROMIUM_SANDBOX=0 \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 WORKDIR /app

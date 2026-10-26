@@ -169,4 +169,15 @@ describe("UXAudit server", () => {
     assert.equal((await api(`/api/audits/${auditId}`)).status, 404);
     assert.equal((await api(`/api/audits/000000000000000000000000`, { method: "DELETE" })).status, 404);
   });
+
+  it("does not let a client choose its own address through X-Forwarded-For", async () => {
+    // This test server does not trust a proxy, so the header is ignored entirely; the
+    // limiter sees one client and refuses the second concurrent analysis.
+    const first = await api("/api/audits", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "1.1.1.1" }, body: JSON.stringify({ url: base + "slow" }) });
+    assert.equal(first.status, 202);
+    const second = await api("/api/audits", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "2.2.2.2" }, body: JSON.stringify({ url: base }) });
+    assert.equal(second.status, 429);
+    const { id } = (await first.json()) as { id: string };
+    await waitFor(id, (j) => j.status === "queued" || j.status === "running" || (!!j.review && (j.review.status === "queued" || j.review.status === "running")));
+  });
 });

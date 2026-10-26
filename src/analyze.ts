@@ -67,26 +67,42 @@ const EXAMPLES_MAX = 5;
 let browserPromise: Promise<Browser> | null = null;
 let browserProxy = "";
 
+let sandboxWarned = false;
+
+async function launchChromium(proxyUrl: string, sandbox: boolean): Promise<Browser> {
+  const options = {
+    headless: true,
+    handleSIGINT: false,
+    // "<-loopback>" forces even 127.0.0.1 through the proxy; Chromium would otherwise bypass it.
+    proxy: { server: proxyUrl, bypass: "<-loopback>" },
+    args: [
+      "--webrtc-ip-handling-policy=disable_non_proxied_udp",
+      "--force-webrtc-ip-handling-policy",
+      "--disable-features=WebRtcAllowInputVolumeAdjustment",
+      "--disable-dev-shm-usage",
+    ],
+  };
+  if (!sandbox) return chromium.launch({ ...options, chromiumSandbox: false });
+  try {
+    return await chromium.launch({ ...options, chromiumSandbox: true });
+  } catch (err) {
+    // Containers without user namespaces cannot start the Chromium sandbox at
+    // all. Fall back once, and say so, rather than refusing to run.
+    if (!sandboxWarned) {
+      sandboxWarned = true;
+      console.warn(`uxaudit: the Chromium sandbox could not be enabled on this host (${err instanceof Error ? err.message.split("\n")[0] : String(err)}); running without it. The container is the isolation boundary.`);
+    }
+    return chromium.launch({ ...options, chromiumSandbox: false });
+  }
+}
+
 async function getBrowser(proxyUrl: string, sandbox: boolean): Promise<Browser> {
   if (browserPromise && browserProxy !== proxyUrl) {
     await closeBrowser();
   }
   if (!browserPromise) {
     browserProxy = proxyUrl;
-    browserPromise = chromium
-      .launch({
-        headless: true,
-        handleSIGINT: false,
-        chromiumSandbox: sandbox,
-        // "<-loopback>" forces even 127.0.0.1 through the proxy; Chromium would otherwise bypass it.
-        proxy: { server: proxyUrl, bypass: "<-loopback>" },
-        args: [
-          "--webrtc-ip-handling-policy=disable_non_proxied_udp",
-          "--force-webrtc-ip-handling-policy",
-          "--disable-features=WebRtcAllowInputVolumeAdjustment",
-          "--disable-dev-shm-usage",
-        ],
-      })
+    browserPromise = launchChromium(proxyUrl, sandbox)
       .then((b) => {
         b.on("disconnected", () => {
           browserPromise = null;
