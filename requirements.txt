@@ -1,2 +1,6 @@
-# Hugging Face Space runtime only: provides the Node.js binary that app.py uses to run UXAudit.
+# Hugging Face Space runtime only: provides the Node.js binary that app.py uses to run UXAudit,
+# plus the small relay that fronts it on the Space's port (these three ship with Gradio anyway).
 nodejs-wheel==22.20.0
+fastapi
+httpx
+uvicorn
