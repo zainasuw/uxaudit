@@ -7,14 +7,11 @@ const input = document.getElementById("url");
 const analyzeButton = document.getElementById("analyze");
 const status = document.getElementById("status");
 const report = document.getElementById("report");
-const recentList = document.getElementById("recent");
-const recentEmpty = document.getElementById("recent-empty");
 const rowTemplate = document.getElementById("check-row");
 const reviewItemTemplate = document.getElementById("review-item");
 
 const STATUS_LABEL = { fail: "Problem", warn: "Warning", pass: "Pass", info: "Note" };
 const ORDER = { fail: 0, warn: 1, pass: 2, info: 3 };
-const RECENT_KEY = "uxaudit.recent";
 let currentId = null;
 
 function showStatus(el, kind, title, detail) {
@@ -83,9 +80,7 @@ async function analyze(url) {
       return;
     }
     status.hidden = true;
-    rememberRecent(id, job.result);
     renderReport(id, job);
-    renderRecent();
   } catch (err) {
     showStatus(status, "error", "The analysis could not start", err.message);
   } finally {
@@ -261,95 +256,6 @@ reviewButton.addEventListener("click", async () => {
   }
 });
 
-/* ---------- Recent audits (kept in this browser) ---------- */
-
-function readRecent() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeRecent(entries) {
-  try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify(entries.slice(0, 20)));
-  } catch {
-    // storage unavailable: the list is a convenience only
-  }
-}
-
-function rememberRecent(id, result) {
-  const entries = readRecent().filter((e) => e.id !== id);
-  entries.unshift({
-    id,
-    url: result.finalUrl,
-    title: result.title,
-    capturedAt: result.capturedAt,
-    failed: result.checks.filter((c) => c.status === "fail").length,
-  });
-  writeRecent(entries);
-}
-
-function forgetRecent(id) {
-  writeRecent(readRecent().filter((e) => e.id !== id));
-}
-
-function renderRecent() {
-  const audits = readRecent();
-  recentList.replaceChildren();
-  recentEmpty.hidden = audits.length > 0;
-  for (const audit of audits) {
-    const li = document.createElement("li");
-    li.className = "recent__item";
-    const link = document.createElement("a");
-    link.className = "recent__link";
-    link.href = `#${audit.id}`;
-    link.textContent = audit.title || "(untitled page)";
-    const url = document.createElement("span");
-    url.className = "recent__url";
-    url.textContent = audit.url;
-    link.append(url);
-    link.addEventListener("click", async (event) => {
-      event.preventDefault();
-      try {
-        const job = await api(`/api/audits/${audit.id}`);
-        if (job.result) renderReport(audit.id, job);
-      } catch (err) {
-        if (err.status === 404) {
-          forgetRecent(audit.id);
-          renderRecent();
-        }
-        showStatus(status, "error", "Could not open that audit", err.status === 404 ? "It has expired and was deleted from the server." : err.message);
-      }
-    });
-    const counts = document.createElement("span");
-    counts.className = "recent__counts";
-    counts.textContent = `${audit.failed} problem${audit.failed === 1 ? "" : "s"} · ${formatTime(audit.capturedAt)}`;
-    const del = document.createElement("button");
-    del.className = "recent__delete";
-    del.type = "button";
-    del.textContent = "Delete";
-    del.setAttribute("aria-label", `Delete audit of ${audit.url}`);
-    del.addEventListener("click", async () => {
-      try {
-        await api(`/api/audits/${audit.id}`, { method: "DELETE" });
-      } catch (err) {
-        if (err.status !== 404) {
-          showStatus(status, "error", "Could not delete that audit", err.message);
-          return;
-        }
-      }
-      forgetRecent(audit.id);
-      renderRecent();
-      if (currentId === audit.id) report.hidden = true;
-    });
-    li.append(link, counts, del);
-    recentList.append(li);
-  }
-}
-
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   const url = input.value.trim();
@@ -359,5 +265,3 @@ form.addEventListener("submit", (event) => {
   }
   analyze(url);
 });
-
-renderRecent();

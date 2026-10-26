@@ -29,8 +29,8 @@ export const DEFAULT_LIMITS: Limits = {
   reviewsPerClientPerDay: 5,
   reviewsPerDay: 480,
   queueMax: 10,
-  retentionHours: 24,
-  maxStoredAudits: 300,
+  retentionHours: 1,
+  maxStoredAudits: 100,
 };
 
 export interface ServerOptions {

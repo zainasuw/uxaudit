@@ -1,0 +1,2 @@
+# Hugging Face Space runtime only: provides the Node.js binary that app.py uses to run UXAudit.
+nodejs-wheel==22.20.0
