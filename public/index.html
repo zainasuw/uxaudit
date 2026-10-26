@@ -3,101 +3,261 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
   <title>UXAudit</title>
-  <meta name="description" content="Paste a public web address and get a candid AI critique of its UI and UX design, with desktop and phone screenshots and the measured facts behind it.">
+  <meta name="description" content="Paste a public web address and get an evidence-backed AI critique of its UI and UX design, with desktop and phone screenshots and the measured facts behind it.">
+  <link rel="preload" href="/assets/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body>
-  <header class="masthead">
-    <div class="wrap masthead__inner">
-      <a class="wordmark" href="/">UXAudit</a>
-      <p class="masthead__tagline">AI design review for any public web page.</p>
+<body data-view="workspace">
+  <header class="nav">
+    <div class="nav__inner">
+      <a class="brand" href="/">
+        <img class="brand__mark" src="/assets/logomark.svg" width="25" height="25" alt="">
+        <span class="brand__name">UXAudit</span>
+      </a>
+      <p class="nav__tagline">AI-powered UI &amp; UX design audits</p>
+      <nav class="nav__links" aria-label="Primary">
+        <a class="nav__link" href="#history">History</a>
+        <button id="nav-new" class="button button--ghost nav__cta" type="button">New audit</button>
+      </nav>
     </div>
   </header>
 
-  <main class="wrap">
-    <section class="intake" aria-labelledby="intake-title">
-      <h1 id="intake-title" class="intake__title">Paste a web address. Get a candid critique of the page's UI and UX design.</h1>
-      <form id="form" class="intake__form" autocomplete="off">
+  <main class="page">
+    <section id="workspace" class="workspace" aria-labelledby="workspace-title">
+      <p class="eyebrow">Audit workspace</p>
+      <h1 id="workspace-title" class="title">Start a new audit</h1>
+      <p class="lede">
+        <span class="only-wide">Get an evidence-backed review of any public website.</span>
+        <span class="only-narrow">See what works and what needs fixing.</span>
+      </p>
+
+      <form id="form" class="intake" autocomplete="off" novalidate>
         <label class="visually-hidden" for="url">Website address</label>
-        <input id="url" class="intake__input" type="text" inputmode="url" placeholder="example.com or https://example.com/page" spellcheck="false" required>
-        <button id="analyze" class="button" type="submit">Review design</button>
+        <div class="field">
+          <img class="field__icon" src="/assets/search.svg" width="21" height="21" alt="">
+          <input id="url" class="field__input" type="text" inputmode="url" placeholder="https://your-website.example" spellcheck="false" required>
+        </div>
+        <button id="analyze" class="button button--primary intake__submit" type="submit">
+          <span class="button__label">Run audit</span>
+          <span class="button__arrow" aria-hidden="true">→</span>
+        </button>
       </form>
-      <p class="intake__hint">Takes about twenty seconds: desktop and phone screenshots, measured checks, then the design review. Public websites only; some sites block automated visitors, and you'll see a clear message if that happens.</p>
-      <div id="status" class="status" hidden role="status" aria-live="polite"></div>
+      <p class="hint">
+        <span class="only-wide">Usually ~20 seconds&ensp;•&ensp;Desktop + mobile&ensp;•&ensp;No sign-in required</span>
+        <span class="only-narrow">~20 seconds · Desktop + mobile · No sign-in</span>
+      </p>
+
+      <ol id="stepper" class="stepper" aria-label="What an audit does">
+        <li class="stepper__step"><img class="stepper__circle" src="/assets/step-idle.svg" width="33" height="33" alt=""><span class="stepper__bar"></span><span class="stepper__label">Enter URL</span></li>
+        <li class="stepper__step"><img class="stepper__circle" src="/assets/step-idle.svg" width="33" height="33" alt=""><span class="stepper__bar"></span><span class="stepper__label">Screenshots</span></li>
+        <li class="stepper__step"><img class="stepper__circle" src="/assets/step-idle.svg" width="33" height="33" alt=""><span class="stepper__bar"></span><span class="stepper__label">Heuristic Review</span></li>
+        <li class="stepper__step"><img class="stepper__circle" src="/assets/step-idle.svg" width="33" height="33" alt=""><span class="stepper__bar"></span><span class="stepper__label">AI Analysis</span></li>
+        <li class="stepper__step"><img class="stepper__circle" src="/assets/step-idle.svg" width="33" height="33" alt=""><span class="stepper__bar"></span><span class="stepper__label">Generate Report</span></li>
+        <li class="stepper__step stepper__step--last"><img class="stepper__circle" src="/assets/step-idle.svg" width="33" height="33" alt=""><span class="stepper__label">Final Score</span></li>
+      </ol>
+
+      <section id="pipeline" class="pipeline" hidden aria-labelledby="pipeline-title">
+        <p id="pipeline-eyebrow" class="pipeline__eyebrow">Review in progress</p>
+        <h2 id="pipeline-title" class="pipeline__title" aria-live="polite"></h2>
+        <p id="pipeline-sub" class="pipeline__sub"></p>
+        <ol class="stages">
+          <li class="stage" data-state="pending">
+            <span class="stage__icon"><img class="stage__ring" src="/assets/stage-pending.svg" width="26" height="26" alt=""><img class="stage__mark" src="/assets/check.svg" width="14" height="14" alt="" hidden></span>
+            <span class="stage__dot" aria-hidden="true"></span>
+            <span class="stage__label">URL verified</span><span class="visually-hidden stage__state"></span>
+          </li>
+          <li class="stage" data-state="pending">
+            <span class="stage__icon"><img class="stage__ring" src="/assets/stage-pending.svg" width="26" height="26" alt=""><img class="stage__mark" src="/assets/check.svg" width="14" height="14" alt="" hidden></span>
+            <span class="stage__dot" aria-hidden="true"></span>
+            <span class="stage__label"><span class="only-wide">Screenshots</span><span class="only-narrow">Capturing screenshots</span></span><span class="visually-hidden stage__state"></span>
+          </li>
+          <li class="stage" data-state="pending">
+            <span class="stage__icon"><img class="stage__ring" src="/assets/stage-pending.svg" width="26" height="26" alt=""><img class="stage__mark" src="/assets/check.svg" width="14" height="14" alt="" hidden></span>
+            <span class="stage__dot" aria-hidden="true"></span>
+            <span class="stage__label">Heuristic checks</span><span class="visually-hidden stage__state"></span>
+          </li>
+          <li class="stage" data-state="pending">
+            <span class="stage__icon"><img class="stage__ring" src="/assets/stage-pending.svg" width="26" height="26" alt=""><img class="stage__mark" src="/assets/check.svg" width="14" height="14" alt="" hidden></span>
+            <span class="stage__dot" aria-hidden="true"></span>
+            <span class="stage__label"><span class="only-wide">AI analysis</span><span class="only-narrow">AI visual analysis</span></span><span class="visually-hidden stage__state"></span>
+          </li>
+          <li class="stage" data-state="pending">
+            <span class="stage__icon"><img class="stage__ring" src="/assets/stage-pending.svg" width="26" height="26" alt=""><img class="stage__mark" src="/assets/check.svg" width="14" height="14" alt="" hidden></span>
+            <span class="stage__dot" aria-hidden="true"></span>
+            <span class="stage__label"><span class="only-wide">Report</span><span class="only-narrow">Preparing report</span></span><span class="visually-hidden stage__state"></span>
+          </li>
+        </ol>
+      </section>
     </section>
 
-    <section id="report" class="report" hidden aria-labelledby="report-title">
-      <header class="report__head">
-        <div>
-          <h2 id="report-title" class="report__title"></h2>
-          <p class="report__meta"><a id="report-url" class="report__url" target="_blank" rel="noopener noreferrer"></a> <span id="report-time"></span></p>
+    <section id="report" class="report" aria-labelledby="report-title">
+      <p class="report__crumb"><a href="#history">History</a><span class="report__crumb-sep" aria-hidden="true">/</span><span>Audit report</span></p>
+      <div class="report__head">
+        <div class="report__intro">
+          <h1 id="report-title" class="report__title">Your design review</h1>
+          <p class="report__lede">
+            <span class="only-wide">A clear look at the interface you submitted.</span>
+            <span class="only-narrow">Visual feedback, grounded in the page.</span>
+          </p>
+          <p class="report__pills">
+            <span class="pill pill--blue">Desktop + mobile</span>
+            <a id="report-url" class="pill pill--host" target="_blank" rel="noopener noreferrer"></a>
+            <span id="report-time" class="pill pill--plain"></span>
+          </p>
+          <p id="report-notes" class="report__notes"></p>
         </div>
-        <p id="report-notes" class="report__notes"></p>
-      </header>
+        <button id="report-another" class="button button--ghost report__another" type="button">Review another site<span class="button__arrow" aria-hidden="true">→</span></button>
+      </div>
 
-      <div class="shots">
+      <section class="summary" aria-labelledby="summary-title">
+        <div class="summary__main">
+          <span class="pill pill--blue">AI design review</span>
+          <h2 id="summary-title" class="summary__title">Understand what works — and what to improve.</h2>
+          <div id="review-status" class="status" hidden role="status" aria-live="polite"></div>
+          <p id="review-reason" class="summary__text"></p>
+          <p id="review-limits-label" class="summary__sublabel" hidden>Could not be assessed</p>
+          <ul id="review-limits" class="summary__limits"></ul>
+          <div id="review-retry" class="summary__retry" hidden>
+            <button id="review-button" class="button button--ghost" type="button">Retry AI review</button>
+          </div>
+        </div>
+        <div class="summary__score">
+          <span class="summary__ring"><img src="/assets/score-ring-large.svg" width="91" height="91" alt=""><span id="review-score" class="summary__value">—</span></span>
+          <span class="summary__label">Design score</span>
+        </div>
+      </section>
+
+      <h2 class="section__title section__title--evidence">Visual evidence</h2>
+      <p class="section__sub section__sub--evidence">
+        <span class="only-wide">Desktop and mobile screenshots make the critique easier to verify.</span>
+        <span class="only-narrow">Review desktop and mobile captures.</span>
+      </p>
+      <div id="report-expired" class="expired" hidden>
+        <img id="report-thumb" class="expired__thumb" alt="Saved preview of the audited page" hidden>
+        <p class="expired__text">The screenshots for this audit are no longer stored. Audits stay on the server for about an hour; use Re-audit in your history to capture the page again.</p>
+      </div>
+      <div class="evidence">
         <figure class="shot shot--desktop">
-          <figcaption class="shot__caption">Desktop · 1280 × 800 <a id="full-link" target="_blank" rel="noopener noreferrer">Open full page</a></figcaption>
+          <figcaption class="shot__head">
+            <span class="shot__label"><span class="only-wide">Desktop view</span><span class="only-narrow">Desktop</span><span class="shot__dims">1280 × 800</span></span>
+            <a id="full-link" class="shot__expand" target="_blank" rel="noopener noreferrer">Expand<span aria-hidden="true">↗</span></a>
+          </figcaption>
           <div class="shot__frame"><img id="shot-desktop" alt="Desktop screenshot of the analyzed page"></div>
+          <p id="shot-desktop-note" class="shot__note"></p>
         </figure>
-        <figure class="shot shot--mobile">
-          <figcaption class="shot__caption">Phone · 390 × 844 <a id="full-link-mobile" target="_blank" rel="noopener noreferrer">Open full page</a></figcaption>
-          <div class="shot__frame shot__frame--phone"><img id="shot-mobile" alt="Mobile screenshot of the analyzed page"></div>
+        <figure class="shot shot--phone">
+          <figcaption class="shot__head">
+            <span class="shot__label"><span class="only-wide">Phone view</span><span class="only-narrow">Phone</span><span class="shot__dims">390 × 844</span></span>
+          </figcaption>
+          <div class="phone"><div class="phone__screen"><img id="shot-mobile" alt="Mobile screenshot of the analyzed page"></div></div>
+          <p class="shot__note shot__note--center"><a id="full-link-mobile" class="shot__expand" target="_blank" rel="noopener noreferrer">Open the full page<span aria-hidden="true">↗</span></a></p>
         </figure>
       </div>
 
-      <section id="review" class="review" aria-labelledby="review-title">
-        <div class="review__head">
-          <h3 id="review-title" class="review__title">Design review</h3>
-          <p class="review__intro">Written by an AI design critic from screenshots of the whole page on desktop and phone, plus the measured checks. It is a design judgement, not a usability study or an accessibility certification, and it can be wrong.</p>
-        </div>
-        <div id="review-status" class="status" hidden role="status" aria-live="polite"></div>
-        <div id="review-retry" class="review__idle" hidden>
-          <button id="review-button" class="button" type="button">Retry AI review</button>
-        </div>
-        <article id="review-body" class="review__body" hidden>
-          <div class="review__score">
-            <p class="review__number"><span id="review-score"></span><span class="review__outof">/10</span></p>
-            <p id="review-reason" class="review__reason"></p>
-          </div>
-          <div class="review__columns">
-            <section class="review__group" aria-labelledby="review-strengths-title">
-              <h4 id="review-strengths-title" class="review__group-title">What works</h4>
-              <ul id="review-strengths" class="review__items"></ul>
-            </section>
-            <section class="review__group" aria-labelledby="review-weaknesses-title">
-              <h4 id="review-weaknesses-title" class="review__group-title">What doesn't</h4>
-              <ul id="review-weaknesses" class="review__items"></ul>
-            </section>
-          </div>
-          <section class="review__group" aria-labelledby="review-limits-title">
-            <h4 id="review-limits-title" class="review__group-title">What could not be assessed</h4>
-            <ul id="review-limits" class="review__limits"></ul>
-          </section>
-          <p id="review-meta" class="review__meta"></p>
-        </article>
-      </section>
-      <section class="checks" aria-labelledby="checks-title">
-        <div class="checks__head">
-          <h3 id="checks-title" class="checks__title">Measured checks</h3>
-          <p id="checks-summary" class="checks__summary"></p>
-        </div>
-        <p class="checks__intro">Facts the browser verified on this page, with what each means for visitors and what to change. These are measured, not judged; the design review above is the judgement.</p>
-        <ol id="checks" class="checks__list"></ol>
-      </section>
+      <h2 class="section__title"><span class="only-wide">What the review found</span><span class="only-narrow">The design critique</span></h2>
+      <p class="section__sub">
+        <span class="only-wide">Understand both the positive design decisions and the areas worth changing.</span>
+        <span class="only-narrow">What's effective, what's unclear, and why.</span>
+      </p>
+      <div class="critique">
+        <section class="panel" aria-labelledby="review-strengths-title">
+          <span class="pill pill--green">What works</span>
+          <h3 id="review-strengths-title" class="panel__title">Design strengths</h3>
+          <ol id="review-strengths" class="strengths"></ol>
+        </section>
+        <section class="panel" aria-labelledby="review-weaknesses-title">
+          <span class="pill pill--amber">Needs attention</span>
+          <h3 id="review-weaknesses-title" class="panel__title">Where to improve</h3>
+          <ol id="review-weaknesses" class="issues"></ol>
+        </section>
+      </div>
 
+      <h2 class="section__title">Browser-verified checks</h2>
+      <p class="section__sub">
+        <span class="only-wide">Factual measurements and accessibility checks, separate from subjective AI feedback.</span>
+        <span class="only-narrow">Measurable facts, separate from AI opinions.</span>
+      </p>
+      <p id="checks-summary" class="section__count"></p>
+      <div class="checks-card"><ol id="checks" class="checks"></ol></div>
+      <p id="review-meta" class="footnote"></p>
     </section>
 
+    <section id="history" class="history" aria-labelledby="history-title">
+      <div class="history__head">
+        <div>
+          <h2 id="history-title" class="history__title">Recent audits</h2>
+          <p id="history-sub" class="history__sub"></p>
+        </div>
+        <a id="history-all" class="history__all" href="#history">View all<span class="history__arrow" aria-hidden="true">→</span></a>
+      </div>
+      <ol id="history-list" class="rows"></ol>
+      <div id="history-empty" class="empty" hidden>
+        <div class="empty__art" aria-hidden="true"><span class="empty__inner"><span class="empty__glyph"></span></span></div>
+        <h3 class="empty__title">Nothing to review yet</h3>
+        <p class="empty__text">Paste a public website URL to create your first audit.<br>Your screenshots and findings will appear here afterward.</p>
+        <button id="history-start" class="button button--primary empty__cta" type="button">
+          <span class="button__label">Start your first audit</span>
+          <span class="button__arrow" aria-hidden="true">→</span>
+        </button>
+      </div>
+      <p id="history-note" class="footnote">Review history is saved locally. No account is needed.</p>
+    </section>
   </main>
 
-  <template id="review-item">
-    <li class="review__item">
-      <p class="review__item-title"><span class="review__item-priority"></span><span class="review__item-name"></span></p>
-      <p class="review__item-location"></p>
-      <p class="review__item-evidence"></p>
-      <p class="review__item-why"></p>
-      <p class="review__item-rec" hidden></p>
+  <template id="history-row">
+    <li class="row">
+      <div class="row__thumb"><img alt="" decoding="async"></div>
+      <div class="row__text">
+        <button class="row__title" type="button"></button>
+        <p class="row__url"></p>
+        <p class="row__date"></p>
+      </div>
+      <span class="row__pill"></span>
+      <div class="row__score">
+        <span class="row__ring"><img src="/assets/score-ring.svg" width="54" height="54" alt=""><span class="row__score-value"></span></span>
+        <span class="row__score-label"></span>
+      </div>
+      <div class="row__actions">
+        <button class="button button--ghost row__view" type="button">View report</button>
+        <div class="row__redo-group">
+          <button class="button button--ghost row__redo" type="button">Re-audit</button>
+          <button class="row__remove" type="button">Remove</button>
+        </div>
+        <button class="row__chevron" type="button"><img src="/assets/chevron.svg" width="17" height="17" alt=""></button>
+      </div>
+      <div class="row__confirm" hidden>
+        <p class="row__confirm-text">Remove this audit from your history?</p>
+        <button class="button button--ghost row__confirm-no" type="button">Keep</button>
+        <button class="button button--danger row__confirm-yes" type="button">Remove</button>
+      </div>
+    </li>
+  </template>
+
+  <template id="strength-item">
+    <li class="strength">
+      <span class="strength__num" aria-hidden="true"></span>
+      <div class="strength__body">
+        <p class="strength__title"></p>
+        <p class="strength__evidence"></p>
+        <p class="strength__why"></p>
+      </div>
+    </li>
+  </template>
+
+  <template id="issue-item">
+    <li class="issue">
+      <div class="issue__head">
+        <p class="issue__title"></p>
+        <span class="pill pill--blue issue__priority" hidden></span>
+      </div>
+      <p class="issue__label"><span class="only-wide">Visible evidence</span><span class="only-narrow">Evidence</span></p>
+      <p class="issue__text issue__evidence"></p>
+      <p class="issue__label">Why it matters</p>
+      <p class="issue__text issue__why"></p>
+      <p class="issue__label issue__label--blue issue__rec-label" hidden><span class="only-wide">Suggested change</span><span class="only-narrow">Recommendation</span></p>
+      <p class="issue__text issue__rec" hidden></p>
     </li>
   </template>
 
@@ -105,8 +265,9 @@
     <li class="check">
       <details class="check__details">
         <summary class="check__summary">
-          <span class="check__status"></span>
+          <span class="check__icon" aria-hidden="true"></span>
           <span class="check__text"><span class="check__title"></span><span class="check__line"></span></span>
+          <span class="visually-hidden check__status"></span>
         </summary>
         <div class="check__body">
           <p class="check__meaning"></p>

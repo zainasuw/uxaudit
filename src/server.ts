@@ -86,6 +86,8 @@ const MIME: Record<string, string> = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".jpg": "image/jpeg",
+  ".woff2": "font/woff2",
+  ".txt": "text/plain; charset=utf-8",
 };
 const SECURITY_HEADERS: Record<string, string> = {
   // Embedding is allowed only by the hosting platform's own pages (the Space page shows the app in a frame).
