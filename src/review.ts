@@ -60,6 +60,12 @@ const LIMITS_MAX = 6;
 export async function loadInstruction(env: NodeJS.ProcessEnv = process.env): Promise<{ text: string; source: string } | null> {
   const inline = env.REVIEW_INSTRUCTION?.trim();
   if (inline) return { text: inline, source: "REVIEW_INSTRUCTION" };
+  // Some hosts only allow single-line secrets; a base64-encoded copy sidesteps that.
+  const encoded = env.REVIEW_INSTRUCTION_B64?.trim();
+  if (encoded) {
+    const decoded = Buffer.from(encoded, "base64").toString("utf8").trim();
+    if (decoded) return { text: decoded, source: "REVIEW_INSTRUCTION_B64" };
+  }
   for (const [file, source] of [
     [env.REVIEW_INSTRUCTION_FILE, "REVIEW_INSTRUCTION_FILE"],
     [PROMPT_FILE, "prompts/review-instruction.txt"],

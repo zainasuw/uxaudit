@@ -1,3 +1,13 @@
+---
+title: UXAudit
+emoji: 🔍
+colorFrom: gray
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # UXAudit
 
 Paste the address of a public web page and get back a desktop screenshot, a phone screenshot, and a short report of things the browser can prove about the page: a missing main heading, images without descriptions, buttons without names, form fields without labels, sideways scrolling on a phone, and a few more. Each finding explains what it means for visitors and what to change.

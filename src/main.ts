@@ -19,8 +19,8 @@ if (!Number.isInteger(port) || port < 0 || port > 65535) {
   console.error(`uxaudit: invalid PORT ${process.env.PORT}`);
   process.exit(1);
 }
-// Render exposes the public host name automatically; an explicit ALLOWED_HOSTS wins.
-const hosting = (process.env.ALLOWED_HOSTS ?? process.env.RENDER_EXTERNAL_HOSTNAME ?? "").trim();
+// Hosts expose their public host name automatically (Hugging Face: SPACE_HOST, Render: RENDER_EXTERNAL_HOSTNAME); an explicit ALLOWED_HOSTS wins.
+const hosting = (process.env.ALLOWED_HOSTS ?? process.env.SPACE_HOST ?? process.env.RENDER_EXTERNAL_HOSTNAME ?? "").trim();
 const server = await startServer({
   port,
   host: process.env.HOST ?? (hosting ? "0.0.0.0" : "127.0.0.1"),

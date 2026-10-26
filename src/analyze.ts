@@ -53,8 +53,9 @@ export class AnalyzeError extends Error {
 export const DESKTOP = { width: 1280, height: 800 };
 export const MOBILE = { width: 390, height: 844 };
 const MAX_FULL_PAGE_HEIGHT = 10_000;
-const MAX_DESKTOP_FRAMES = 10;
-const MAX_MOBILE_FRAMES = 8;
+// Frames sent to the reviewer; lower these on small hosts to save memory and tokens.
+const MAX_DESKTOP_FRAMES = Math.min(20, Math.max(1, Number(process.env.UXAUDIT_DESKTOP_FRAMES) || 10));
+const MAX_MOBILE_FRAMES = Math.min(20, Math.max(1, Number(process.env.UXAUDIT_MOBILE_FRAMES) || 8));
 const SETTLE_MS = 800;
 const JPEG_QUALITY = 85;
 const TITLE_MAX = 300;

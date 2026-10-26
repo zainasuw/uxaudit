@@ -124,6 +124,8 @@ describe("loadInstruction", () => {
   it("prefers the environment variable, then a named file, and reports where it came from", async () => {
     const fromEnv = await loadInstruction({ REVIEW_INSTRUCTION: "  Be exact.  " });
     assert.deepEqual(fromEnv, { text: "Be exact.", source: "REVIEW_INSTRUCTION" });
+    const fromB64 = await loadInstruction({ REVIEW_INSTRUCTION_B64: Buffer.from("Be brief.").toString("base64") });
+    assert.deepEqual(fromB64, { text: "Be brief.", source: "REVIEW_INSTRUCTION_B64" });
     const missing = await loadInstruction({ REVIEW_INSTRUCTION_FILE: "/nonexistent/instruction.txt" });
     assert.ok(missing === null || missing.source === "prompts/review-instruction.txt");
   });
