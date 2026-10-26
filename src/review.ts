@@ -102,11 +102,13 @@ function asItems(raw: unknown, withPriority: boolean, why: string): ReviewItem[]
   for (const entry of raw.slice(0, ITEMS_MAX)) {
     if (!entry || typeof entry !== "object") continue;
     const e = entry as Record<string, unknown>;
+    // Models drift on the explanation key; accept the documented one and common variants.
+    const explanation = [e[why], e.why_it_matters, e.why_it_works, e.why, e.impact, e.reason, e.rationale, e.explanation].find((v) => typeof v === "string" && v.trim());
     const item: ReviewItem = {
       title: clip(e.title, 160),
       location: clip(e.location, 200),
       evidence: clip(e.evidence),
-      explanation: clip(e[why]),
+      explanation: clip(explanation),
     };
     if (!item.title || !item.evidence) continue;
     const recommendation = clip(e.recommendation, 400);

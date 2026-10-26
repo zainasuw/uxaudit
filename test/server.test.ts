@@ -73,7 +73,7 @@ describe("UXAudit server", () => {
     assert.ok((await res.text()).includes("UXAudit"));
     assert.match(res.headers.get("content-security-policy") ?? "", /default-src 'self'/);
     assert.equal(res.headers.get("x-content-type-options"), "nosniff");
-    assert.equal(res.headers.get("x-frame-options"), "DENY");
+    assert.match(res.headers.get("content-security-policy") ?? "", /frame-ancestors 'self' https:\/\/huggingface\.co/);
     assert.equal((await fetch(server.url + "../package.json")).status, 404);
     assert.equal((await fetch(server.url + ".env")).status, 404);
   });

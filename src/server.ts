@@ -88,9 +88,9 @@ const MIME: Record<string, string> = {
   ".jpg": "image/jpeg",
 };
 const SECURITY_HEADERS: Record<string, string> = {
-  "content-security-policy": "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+  // Embedding is allowed only by the hosting platform's own pages (the Space page shows the app in a frame).
+  "content-security-policy": "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'self' https://huggingface.co https://*.hf.space; base-uri 'none'; form-action 'self'",
   "x-content-type-options": "nosniff",
-  "x-frame-options": "DENY",
   "referrer-policy": "no-referrer",
   "permissions-policy": "camera=(), microphone=(), geolocation=()",
   "cache-control": "no-store",
