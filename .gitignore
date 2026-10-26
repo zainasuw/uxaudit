@@ -8,3 +8,4 @@ dist/
 test/.tmp/
 # The review instruction is private; the server reads it from REVIEW_INSTRUCTION or REVIEW_INSTRUCTION_FILE in production.
 prompts/
+__pycache__/
