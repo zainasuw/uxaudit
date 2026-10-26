@@ -69,10 +69,20 @@ let browserProxy = "";
 
 let sandboxWarned = false;
 
+/** The browser process never needs the server's secrets; keep them out of its environment. */
+function browserEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined && !/^(GEMINI_API_KEY|REVIEW_INSTRUCTION(_B64|_FILE)?)$/.test(key)) env[key] = value;
+  }
+  return env;
+}
+
 async function launchChromium(proxyUrl: string, sandbox: boolean): Promise<Browser> {
   const options = {
     headless: true,
     handleSIGINT: false,
+    env: browserEnv(),
     // "<-loopback>" forces even 127.0.0.1 through the proxy; Chromium would otherwise bypass it.
     proxy: { server: proxyUrl, bypass: "<-loopback>" },
     args: [

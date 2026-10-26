@@ -101,8 +101,14 @@ const SECURITY_HEADERS: Record<string, string> = {
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
 const hostOf = (header: string | undefined) => (header ?? "").replace(/:\d+$/, "").replace(/^\[|\]$/g, "").toLowerCase();
 const today = () => new Date().toISOString().slice(0, 10);
-/** Keep terminal control characters and anything secret-looking out of log lines. */
-const scrubLog = (s: string) => s.replace(/[\x00-\x1f\x7f]/g, " ").replace(/AIza[0-9A-Za-z_-]+/g, "[key]").slice(0, 300);
+/** Values that must never reach a log line (the configured key and instruction); set by startServer. */
+let secretValues: string[] = [];
+/** Keep terminal control characters and anything secret out of log lines. */
+const scrubLog = (s: string) => {
+  let out = s.replace(/[\x00-\x1f\x7f]/g, " ").replace(/AIza[0-9A-Za-z_-]+/g, "[key]");
+  for (const secret of secretValues) out = out.split(secret).join("[redacted]");
+  return out.slice(0, 300);
+};
 
 function send(res: http.ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { ...SECURITY_HEADERS, "content-type": "application/json; charset=utf-8" });
@@ -153,7 +159,13 @@ class DailyCounter {
 export async function startServer(opts: ServerOptions = {}) {
   const log = opts.log ?? (() => undefined);
   const limits: Limits = { ...DEFAULT_LIMITS, ...opts.limits };
-  const allowedHosts = new Set([...LOOPBACK, ...(opts.allowedHosts ?? []).map((h) => hostOf(h))]);
+  const publicHosts = new Set((opts.allowedHosts ?? []).map((h) => hostOf(h)));
+  // Behind a hosting relay the Host header is the internal loopback address, so
+  // loopback stays acceptable there; browser Origins, however, must then be the
+  // public site itself, never a page running on the viewer's own machine.
+  const allowedHosts = new Set([...LOOPBACK, ...publicHosts]);
+  const allowedOrigins = publicHosts.size > 0 ? publicHosts : allowedHosts;
+  const hosted = publicHosts.size > 0;
   const store: Store = await createStore(opts.storeDir);
   const proxy: EgressProxy = await startEgressProxy({
     allowPrivate: opts.allowPrivateHosts?.includes("*"),
@@ -163,6 +175,7 @@ export async function startServer(opts: ServerOptions = {}) {
   });
   const loaded = opts.geminiApiKey ? await loadInstruction() : null;
   const instruction = loaded?.text ?? null;
+  secretValues = [opts.geminiApiKey, instruction].filter((s): s is string => typeof s === "string" && s.length >= 8);
   if (opts.geminiApiKey && !instruction) {
     log("AI review disabled: no review instruction found (set REVIEW_INSTRUCTION or REVIEW_INSTRUCTION_FILE).");
   }
@@ -197,7 +210,7 @@ export async function startServer(opts: ServerOptions = {}) {
     } catch {
       throw new HttpError(403, "Cross-origin requests are not allowed.");
     }
-    if (!allowedHosts.has(hostOf(parsed.host))) throw new HttpError(403, "Cross-origin requests are not allowed.");
+    if (!allowedOrigins.has(hostOf(parsed.host))) throw new HttpError(403, "Cross-origin requests are not allowed.");
   }
 
   /** Last line of defence: no single job may hold the queue longer than this, whatever it is waiting on. */
@@ -449,6 +462,8 @@ export async function startServer(opts: ServerOptions = {}) {
   }
 
   const server = http.createServer((req, res) => {
+    // Browsers only honour this over HTTPS, which is exactly where the hosted site lives.
+    if (hosted) res.setHeader("strict-transport-security", "max-age=31536000");
     let url: URL;
     try {
       url = new URL(req.url ?? "/", "http://localhost");

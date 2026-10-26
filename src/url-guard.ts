@@ -82,6 +82,10 @@ export function isPrivateIp(ip: string): boolean {
   if (g0 === 0x64 && g1 === 0xff9b && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0) {
     return isPrivateIp(`${g6 >> 8}.${g6 & 0xff}.${g7 >> 8}.${g7 & 0xff}`); // NAT64
   }
+  if (g0 === 0x64 && g1 === 0xff9b && g2 === 1) return true; // 64:ff9b:1::/48 local-use NAT64
+  if (g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0xffff && g5 === 0) {
+    return isPrivateIp(`${g6 >> 8}.${g6 & 0xff}.${g7 >> 8}.${g7 & 0xff}`); // ::ffff:0:a.b.c.d IPv4-translated
+  }
   if (isZero && g5 === 0) {
     return isPrivateIp(`${g6 >> 8}.${g6 & 0xff}.${g7 >> 8}.${g7 & 0xff}`); // ::a.b.c.d IPv4-compatible (deprecated)
   }
@@ -137,7 +141,11 @@ export function parseTargetUrl(input: unknown, opts: { allowPrivate?: boolean } 
 export type Lookup = (hostname: string) => Promise<string[]>;
 
 export const systemLookup: Lookup = async (hostname) => {
-  const records = await dns.lookup(hostname, { all: true, verbatim: true });
+  // A trailing dot marks the name as fully qualified, so the resolver never
+  // expands it with the host's search domains (which could turn a typed name
+  // into an internal one and reveal, by the error shown, whether it exists).
+  const fqdn = net.isIP(hostname) || hostname.endsWith(".") ? hostname : `${hostname}.`;
+  const records = await dns.lookup(fqdn, { all: true, verbatim: true });
   return records.map((r) => r.address);
 };
 

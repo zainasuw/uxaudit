@@ -181,3 +181,24 @@ describe("UXAudit server", () => {
     await waitFor(id, (j) => j.status === "queued" || j.status === "running" || (!!j.review && (j.review.status === "queued" || j.review.status === "running")));
   });
 });
+
+describe("UXAudit server behind a hosting relay", () => {
+  it("accepts only the public origin and sends HSTS", async () => {
+    await mkdir(TMP, { recursive: true });
+    const dir = await mkdtemp(path.join(TMP, "hosted-"));
+    const hosted = await startServer({ port: 0, storeDir: dir, allowedHosts: ["app.example"], trustProxy: true });
+    try {
+      const get = (origin?: string) => fetch(hosted.url, { headers: origin ? { origin } : {} });
+      const plain = await get();
+      assert.equal(plain.status, 200);
+      assert.equal(plain.headers.get("strict-transport-security"), "max-age=31536000");
+      assert.equal((await get("https://app.example")).status, 200);
+      // A page on the viewer's own machine must not be able to drive the public site.
+      assert.equal((await get("http://127.0.0.1:5173")).status, 403);
+      assert.equal((await get("http://localhost:3000")).status, 403);
+    } finally {
+      await hosted.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
