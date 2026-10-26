@@ -35,7 +35,7 @@ if spaces is not None:
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 NODE_BIN = os.path.join(ROOT_DIR, "bin")
 PUBLIC_PORT = int(os.environ.get("PORT", "7860"))
-INTERNAL_PORT = PUBLIC_PORT + 1
+INTERNAL_PORT = PUBLIC_PORT + 10  # Gradio reserves PUBLIC_PORT + 1 for itself
 
 
 def run(*args: str) -> None:
