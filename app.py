@@ -47,7 +47,9 @@ def start_node() -> subprocess.Popen:
     env = dict(os.environ)
     env["PATH"] = NODE_BIN + os.pathsep + env.get("PATH", "")
     env.setdefault("NODE_ENV", "production")
-    env.setdefault("TRUST_PROXY", "1")
+    # Node listens on loopback only, behind the relay below, which forwards exactly one
+    # X-Forwarded-For value (the address the Space's edge proxy saw), so it is trusted here.
+    env["TRUST_PROXY"] = "1"
     env["PORT"] = str(INTERNAL_PORT)
     env["HOST"] = "127.0.0.1"
 

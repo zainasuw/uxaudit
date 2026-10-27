@@ -1,8 +1,9 @@
 // Audits are kept on disk (default ~/.uxaudit) with random ids that act as the
 // only handle to a result. Nothing is ever written into the project directory.
+// Everything is created readable by the server's own user only.
 
 import { randomBytes } from "node:crypto";
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { AuditResult, Screenshots } from "./analyze.js";
@@ -11,6 +12,9 @@ import type { Review } from "./review.js";
 const SAFE = /^[a-f0-9]{24}$/;
 const IMAGES = ["desktop", "desktop-full", "mobile", "mobile-full"] as const;
 const FRAME = /^(desktop|mobile)-frame-\d{1,2}$/;
+const SHA256 = /^[a-f0-9]{64}$/;
+const DIR_MODE = 0o700;
+const FILE_MODE = 0o600;
 export type ImageName = (typeof IMAGES)[number] | `desktop-frame-${number}` | `mobile-frame-${number}`;
 
 export function defaultStoreDir(): string {
@@ -18,7 +22,10 @@ export function defaultStoreDir(): string {
 }
 
 export async function createStore(dir = defaultStoreDir()) {
-  await mkdir(dir, { recursive: true });
+  await mkdir(dir, { recursive: true, mode: DIR_MODE });
+  // mkdir leaves an existing directory's permissions alone, so tighten them explicitly.
+  await chmod(dir, DIR_MODE).catch(() => undefined);
+  const write = (file: string, data: string | Buffer) => writeFile(file, data, { mode: FILE_MODE });
   const dirOf = (id: string) => {
     if (!SAFE.test(id)) throw new Error("Invalid audit id");
     return path.join(dir, id);
@@ -36,21 +43,28 @@ export async function createStore(dir = defaultStoreDir()) {
     newId: () => randomBytes(12).toString("hex"),
     get: (id: string) => readJson<AuditResult>(id, "audit.json"),
     getReview: (id: string) => readJson<Review>(id, "review.json"),
-    async save(id: string, result: AuditResult, shots: Screenshots): Promise<void> {
+    /** `deleteHash` is the SHA-256 of the code that may delete this audit; the code itself is never stored. */
+    async save(id: string, result: AuditResult, shots: Screenshots, deleteHash?: string): Promise<void> {
       const target = dirOf(id);
-      await mkdir(target, { recursive: true });
-      await writeFile(path.join(target, "desktop.jpg"), shots.desktop);
-      await writeFile(path.join(target, "desktop-full.jpg"), shots.desktopFull);
-      await writeFile(path.join(target, "mobile.jpg"), shots.mobile);
-      await writeFile(path.join(target, "mobile-full.jpg"), shots.mobileFull);
+      await mkdir(target, { recursive: true, mode: DIR_MODE });
+      await write(path.join(target, "desktop.jpg"), shots.desktop);
+      await write(path.join(target, "desktop-full.jpg"), shots.desktopFull);
+      await write(path.join(target, "mobile.jpg"), shots.mobile);
+      await write(path.join(target, "mobile-full.jpg"), shots.mobileFull);
       await Promise.all([
-        ...shots.desktopFrames.map((buf, i) => writeFile(path.join(target, `desktop-frame-${i + 1}.jpg`), buf)),
-        ...shots.mobileFrames.map((buf, i) => writeFile(path.join(target, `mobile-frame-${i + 1}.jpg`), buf)),
+        ...shots.desktopFrames.map((buf, i) => write(path.join(target, `desktop-frame-${i + 1}.jpg`), buf)),
+        ...shots.mobileFrames.map((buf, i) => write(path.join(target, `mobile-frame-${i + 1}.jpg`), buf)),
       ]);
-      await writeFile(path.join(target, "audit.json"), JSON.stringify(result, null, 2));
+      if (deleteHash && SHA256.test(deleteHash)) await write(path.join(target, "delete.json"), JSON.stringify({ sha256: deleteHash }));
+      await write(path.join(target, "audit.json"), JSON.stringify(result, null, 2));
     },
     async saveReview(id: string, review: Review): Promise<void> {
-      await writeFile(path.join(dirOf(id), "review.json"), JSON.stringify(review, null, 2));
+      await write(path.join(dirOf(id), "review.json"), JSON.stringify(review, null, 2));
+    },
+    /** The stored SHA-256 of the audit's delete code, or null for audits saved without one. */
+    async getDeleteHash(id: string): Promise<string | null> {
+      const value = await readJson<{ sha256?: unknown }>(id, "delete.json");
+      return typeof value?.sha256 === "string" && SHA256.test(value.sha256) ? value.sha256 : null;
     },
     async image(id: string, name: string): Promise<Buffer | null> {
       if (!SAFE.test(id) || !((IMAGES as readonly string[]).includes(name) || FRAME.test(name))) return null;
@@ -97,7 +111,7 @@ export async function createStore(dir = defaultStoreDir()) {
       return { day: "", count: 0 };
     },
     async writeCounter(name: string, value: { day: string; count: number }): Promise<void> {
-      await writeFile(path.join(dir, `${name}.json`), JSON.stringify(value));
+      await write(path.join(dir, `${name}.json`), JSON.stringify(value));
     },
   };
 }

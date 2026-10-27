@@ -24,8 +24,11 @@ const STATUS_LABEL = { fail: "Problem", warn: "Warning", pass: "Pass", info: "No
 const ORDER = { fail: 0, warn: 1, pass: 2, info: 3 };
 const ID_PATTERN = /^[0-9a-f]{24}$/;
 const THUMB_PATTERN = /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/;
+const CODE_PATTERN = /^[0-9a-f]{32}$/;
 const HISTORY_KEY = "uxaudit.history.v1";
 const ACTIVE_KEY = "uxaudit.active";
+const CODES_KEY = "uxaudit.deleteCodes";
+const CODE_TTL_MS = 60 * 60 * 1000; // the server keeps an audit for about an hour
 const HISTORY_MAX = 20;
 const RECENT_COUNT = 3;
 
@@ -106,6 +109,50 @@ function saveHistory(list) {
   }
 }
 
+/* Delete codes: the server hands one to the browser that starts an audit and only
+   that code can delete it from the server. Each is kept as { code, at } for as long
+   as the server copy can exist (about an hour); after that there is nothing left to
+   delete. Losing one (cleared site data) only means the server copy expires on its own. */
+
+function loadCodes() {
+  try {
+    const codes = JSON.parse(storage.get(CODES_KEY) || "{}");
+    return codes && typeof codes === "object" && !Array.isArray(codes) ? codes : {};
+  } catch {
+    return {};
+  }
+}
+
+const isLiveCode = (item) =>
+  !!item && typeof item === "object" && typeof item.code === "string" && CODE_PATTERN.test(item.code) &&
+  typeof item.at === "number" && Date.now() - item.at < CODE_TTL_MS;
+
+/** Writes the codes back, dropping any that have expired. */
+function saveCodes(codes) {
+  const live = {};
+  for (const [id, item] of Object.entries(codes)) {
+    if (ID_PATTERN.test(id) && isLiveCode(item)) live[id] = { code: item.code, at: item.at };
+  }
+  storage.set(CODES_KEY, JSON.stringify(live));
+}
+
+function rememberCode(id, code) {
+  if (!ID_PATTERN.test(id) || typeof code !== "string" || !CODE_PATTERN.test(code)) return;
+  saveCodes({ ...loadCodes(), [id]: { code, at: Date.now() } });
+}
+
+/** The audit's delete code, or null when this browser never had one or it has expired. */
+function codeFor(id) {
+  const item = loadCodes()[id];
+  return isLiveCode(item) ? item.code : null;
+}
+
+function forgetCode(id) {
+  const codes = loadCodes();
+  delete codes[id];
+  saveCodes(codes);
+}
+
 const findEntry = (id) => loadHistory().find((e) => e.id === id);
 
 function updateHistory(id, patch) {
@@ -166,14 +213,21 @@ function captureThumb(id) {
 }
 
 function removeEntry(id) {
+  const code = codeFor(id);
+  forgetCode(id);
   saveHistory(loadHistory().filter((e) => e.id !== id));
   renderHistory();
-  api(`/api/audits/${id}`, { method: "DELETE" }).catch(() => undefined); // best effort: the server forgets it within the hour anyway
+  // Best effort: without a code (or if this fails) the server copy simply expires within the hour.
+  if (code) api(`/api/audits/${id}`, { method: "DELETE", headers: { "x-delete-code": code } }).catch(() => undefined);
   if (currentId === id) {
     currentId = null;
     if (document.body.dataset.view === "report") showView("history");
   }
-  if (pipelineId === id) showIdle();
+  if (pipelineId === id) {
+    run++; // stop following it, or the tracker would save it back into history when it finishes
+    setBusy(false);
+    showIdle();
+  }
 }
 
 /* ---------- Formatting ---------- */
@@ -275,7 +329,8 @@ async function analyze(url) {
   setBusy(true);
   renderPipeline(describeJob(null), null);
   try {
-    const { id } = await api("/api/audits", { method: "POST", body: JSON.stringify({ url }) });
+    const { id, deleteCode } = await api("/api/audits", { method: "POST", body: JSON.stringify({ url }) });
+    rememberCode(id, deleteCode); // stored before the cancellation check; an unused code just expires
     if (token !== run) return;
     storage.set(ACTIVE_KEY, id);
     pipelineId = id;
@@ -334,6 +389,8 @@ async function resume() {
     if (job.status === "done") {
       storage.remove(ACTIVE_KEY);
       input.value = job.url;
+      saveHistoryFromJob(id, job); // it finished while the page was closed, so give it its history row
+      captureThumb(id);
       openReport(id, job);
       return;
     }
@@ -658,6 +715,9 @@ function renderRow(entry) {
 
   const confirm = node.querySelector(".row__confirm");
   const remove = node.querySelector(".row__remove");
+  confirm.querySelector(".row__confirm-text").textContent = codeFor(entry.id)
+    ? "Remove this audit and its server copy?"
+    : "Remove from your history only?";
   const cancel = () => {
     confirm.hidden = true;
     node.classList.remove("row--confirm");

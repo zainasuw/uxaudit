@@ -441,7 +441,8 @@ body[data-view="history"] .rows { margin-top: 57px; }
   .row__pill, .row__score, .row__view, .row__redo-group { justify-self: start; }
   .row__view, .row__redo-group { margin-top: 0; }
   .row__chevron { display: none; }
-  .row__confirm { right: 20px; }
+  /* Sit in the action row (its buttons are hidden while confirming), clear of the title, address and date. */
+  .row__confirm { right: 20px; top: auto; bottom: 12px; transform: none; }
 }
 
 /* ---------- Phone (≤699px, frame P3 at 390px) ---------- */

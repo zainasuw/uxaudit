@@ -1,0 +1,19 @@
+# Weekly update pull requests; each one runs CI before anything is merged.
+# Note: a playwright update must also bump the base image tag in the Dockerfile.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+        # playwright gets its own pull request: it must move together with the Dockerfile tag
+        # (CI checks that they match) and with the CI runner image.
+        exclude-patterns: ["playwright"]
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly

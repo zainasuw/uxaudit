@@ -1,3 +1,4 @@
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import http from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
@@ -99,6 +100,10 @@ const SECURITY_HEADERS: Record<string, string> = {
 };
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
+/** Deleting an audit needs the code issued when it was started; only its SHA-256 is kept. */
+const DELETE_CODE = /^[a-f0-9]{32}$/;
+const hashDeleteCode = (code: string) => createHash("sha256").update(code).digest("hex");
+const sameHash = (a: string, b: string) => timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
 const hostOf = (header: string | undefined) => (header ?? "").replace(/:\d+$/, "").replace(/^\[|\]$/g, "").toLowerCase();
 const today = () => new Date().toISOString().slice(0, 10);
 /** Values that must never reach a log line (the configured key and instruction); set by startServer. */
@@ -182,6 +187,8 @@ export async function startServer(opts: ServerOptions = {}) {
   const reviewEnabled = !!opts.geminiApiKey && !!instruction;
 
   const jobs = new Map<string, JobState>();
+  /** Delete-code hashes for audits not yet on disk (running or failed); saved audits keep theirs in the store. */
+  const deleteHashes = new Map<string, string>();
   const clientAudits = new DailyCounter();
   const clientReviews = new DailyCounter();
   const clientPending = new Map<string, number>();
@@ -298,7 +305,8 @@ export async function startServer(opts: ServerOptions = {}) {
             job.stage = stage;
           },
         });
-        await store.save(job.id, result, screenshots);
+        await store.save(job.id, result, screenshots, deleteHashes.get(job.id));
+        deleteHashes.delete(job.id);
         job.status = "done";
         job.stage = "Done";
         job.result = result;
@@ -310,7 +318,10 @@ export async function startServer(opts: ServerOptions = {}) {
         job.stage = "Failed";
         job.error = failureFor(err);
       } finally {
-        setTimeout(() => jobs.delete(job.id), 10 * 60 * 1000).unref();
+        setTimeout(() => {
+          jobs.delete(job.id);
+          deleteHashes.delete(job.id);
+        }, 10 * 60 * 1000).unref();
       }
       },
       onLimit,
@@ -396,10 +407,14 @@ export async function startServer(opts: ServerOptions = {}) {
       if (clientPending.get(client)) throw new HttpError(429, "You already have an analysis in progress. Wait for it to finish.");
       if (clientAudits.get(client) >= limits.auditsPerClientPerDay) throw new HttpError(429, `You have used today's ${limits.auditsPerClientPerDay} analyses. Try again tomorrow.`);
       const job: JobState = { id: store.newId(), status: "queued", stage: "Waiting", url: input, startedAt: new Date().toISOString() };
-      runAudit(job, client);
+      runAudit(job, client); // throws 429 while the queue is full, before anything is kept for this request
+      // Returned once, to the browser that started the audit; the server keeps only its hash.
+      // The queued task cannot reach store.save before this synchronous code finishes.
+      const deleteCode = randomBytes(16).toString("hex");
+      deleteHashes.set(job.id, hashDeleteCode(deleteCode));
       clientAudits.increment(client);
       jobs.set(job.id, job);
-      return send(res, 202, { id: job.id, status: job.status });
+      return send(res, 202, { id: job.id, status: job.status, deleteCode });
     }
 
     if (head === "audits" && id && !sub && method === "GET") {
@@ -414,8 +429,19 @@ export async function startServer(opts: ServerOptions = {}) {
     }
 
     if (head === "audits" && id && !sub && method === "DELETE") {
+      const job = jobs.get(id);
+      const expected = deleteHashes.get(id) ?? (await store.getDeleteHash(id));
+      if (!job && !expected && !(await store.get(id))) throw new HttpError(404, "Audit not found.");
+      // Viewing works for anyone with the link; deleting needs the code given to the browser that started the audit.
+      const code = String(req.headers["x-delete-code"] ?? "");
+      if (!expected || !DELETE_CODE.test(code) || !sameHash(hashDeleteCode(code), expected)) {
+        throw new HttpError(403, "Only the browser that started this audit can delete it.");
+      }
+      if (job && (job.status === "queued" || job.status === "running")) throw new HttpError(409, "This audit is still running.");
       jobs.delete(id);
-      if (!(await store.remove(id))) throw new HttpError(404, "Audit not found.");
+      deleteHashes.delete(id);
+      const removed = await store.remove(id);
+      if (!removed && !job) throw new HttpError(404, "Audit not found.");
       return send(res, 200, { ok: true });
     }
 

@@ -1,0 +1,39 @@
+# Runs on every push to main and every pull request (including Dependabot's):
+# installs exactly what package-lock.json pins, checks for known vulnerabilities,
+# typechecks, and runs the full test suite against a real Chromium.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # Pinned: playwright 1.58.2 has no build for Ubuntu 26.04, which ubuntu-latest is moving to.
+    # Move together with a playwright upgrade (and the matching Dockerfile tag).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          lfs: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Dockerfile base image matches the playwright package
+        run: test "$(node -p "require('./package.json').dependencies.playwright")" = "$(sed -n 's#^FROM mcr.microsoft.com/playwright:v\([0-9.]*\)-.*#\1#p' Dockerfile)"
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=moderate
+      - run: npm run typecheck
+      - run: npx playwright install --with-deps chromium
+      - run: npm test

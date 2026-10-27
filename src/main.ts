@@ -21,11 +21,13 @@ if (!Number.isInteger(port) || port < 0 || port > 65535) {
 }
 // Hosts expose their public host name automatically (Hugging Face: SPACE_HOST, Render: RENDER_EXTERNAL_HOSTNAME); an explicit ALLOWED_HOSTS wins.
 const hosting = (process.env.ALLOWED_HOSTS ?? process.env.SPACE_HOST ?? process.env.RENDER_EXTERNAL_HOSTNAME ?? "").trim();
+const host = process.env.HOST ?? (hosting ? "0.0.0.0" : "127.0.0.1");
+const trustProxy = process.env.TRUST_PROXY === "1";
 const server = await startServer({
   port,
-  host: process.env.HOST ?? (hosting ? "0.0.0.0" : "127.0.0.1"),
+  host,
   allowedHosts: hosting ? hosting.split(",").map((h) => h.trim()).filter(Boolean) : [],
-  trustProxy: process.env.TRUST_PROXY === "1",
+  trustProxy,
   geminiApiKey: process.env.GEMINI_API_KEY || undefined,
   geminiModel: process.env.GEMINI_MODEL || undefined,
   chromiumSandbox: process.env.CHROMIUM_SANDBOX !== "0",
@@ -38,6 +40,9 @@ console.log(
     `AI review: ${server.reviewEnabled ? `enabled (instruction from ${server.instructionSource})` : "disabled (set GEMINI_API_KEY and REVIEW_INSTRUCTION to enable)"}\n` +
     `Audits are stored in ${server.store.dir} for ${server.limits.retentionHours} hours\n` +
     (process.env.CHROMIUM_SANDBOX === "0" ? "WARNING: the Chromium sandbox is disabled.\n" : "") +
+    (trustProxy && !["127.0.0.1", "::1", "localhost"].includes(host)
+      ? "WARNING: TRUST_PROXY=1 takes client addresses from X-Forwarded-For. Use it only behind a reverse proxy; if this port is reachable directly, clients can pick their own address and slip past the per-visitor limits.\n"
+      : "") +
     `Press Ctrl+C to stop.\n`,
 );
 

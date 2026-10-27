@@ -1,11 +1,15 @@
 import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { startServer } from "../src/server.ts";
 import type { JobState } from "../src/server.ts";
 import { closedPort, startFixtureServer, TMP } from "./helpers.ts";
+
+/** Permission bits of a file or directory (POSIX only). */
+const modeOf = async (p: string) => (await stat(p)).mode & 0o777;
+const posix = process.platform !== "win32";
 
 const goodReview = {
   overall_score: 6,
@@ -21,6 +25,9 @@ describe("UXAudit server", () => {
   let tmp: string;
   let base: string;
   let auditId: string;
+  let auditCode: string;
+  let failedId: string;
+  let failedCode: string;
   let reviewCalls = 0;
   let reviewStatus = 200;
 
@@ -47,6 +54,8 @@ describe("UXAudit server", () => {
   };
 
   before(async () => {
+    // The real review instruction is private (git-ignored); the provider is mocked, so any text will do.
+    process.env.REVIEW_INSTRUCTION = "Placeholder review instruction for tests.";
     await mkdir(TMP, { recursive: true });
     tmp = await mkdtemp(path.join(TMP, "server-"));
     fixture = await startFixtureServer();
@@ -104,12 +113,25 @@ describe("UXAudit server", () => {
   it("runs an audit through the job API, stores it, and serves JPEG images", async () => {
     const started = await api("/api/audits", { method: "POST", body: JSON.stringify({ url: base }) });
     assert.equal(started.status, 202);
-    const { id } = (await started.json()) as { id: string };
+    const { id, deleteCode } = (await started.json()) as { id: string; deleteCode: string };
     assert.match(id, /^[a-f0-9]{24}$/, "unguessable id");
+    assert.match(deleteCode, /^[a-f0-9]{32}$/, "a delete code is issued once, to the browser that started the audit");
     auditId = id;
+    auditCode = deleteCode;
     const job = await waitFor(id, (j) => j.status === "queued" || j.status === "running");
     assert.equal(job.status, "done", JSON.stringify(job.error));
     assert.equal(job.result?.title, "Harbor Ferry Schedule");
+    // Neither the code nor its hash is ever sent back, and the hash is not reachable as a file.
+    const shown = await (await api(`/api/audits/${id}`)).text();
+    assert.ok(!shown.includes(deleteCode) && !/sha256|deleteCode|delete\.json/i.test(shown), "no delete code or hash in the audit JSON");
+    assert.equal((await fetch(server.url + `api/audits/${id}/images/delete`)).status, 404);
+    if (posix) {
+      assert.equal(await modeOf(tmp), 0o700, "store directory is owner-only");
+      assert.equal(await modeOf(path.join(tmp, id)), 0o700, "audit directory is owner-only");
+      for (const file of ["audit.json", "desktop.jpg", "desktop-frame-1.jpg", "delete.json"]) {
+        assert.equal(await modeOf(path.join(tmp, id, file)), 0o600, `${file} is owner-only`);
+      }
+    }
     for (const name of ["desktop", "mobile", "desktop-full", "mobile-full", "desktop-frame-1", "mobile-frame-1"]) {
       const img = await fetch(server.url + `api/audits/${id}/images/${name}`);
       assert.equal(img.status, 200, name);
@@ -127,6 +149,7 @@ describe("UXAudit server", () => {
     assert.equal((await api(`/api/audits/${auditId}/review`, { method: "POST" })).status, 409);
     const stored = (await (await api(`/api/audits/${auditId}`)).json()) as JobState;
     assert.equal(stored.review?.result?.scoreReason, "Mixed.");
+    if (posix) assert.equal(await modeOf(path.join(tmp, auditId, "review.json")), 0o600, "review.json is owner-only");
   });
 
   it("reports provider failures honestly, allows a retry, and enforces the daily review budget", async () => {
@@ -149,10 +172,12 @@ describe("UXAudit server", () => {
 
   it("reports an unreachable site as a job error, not a crash", async () => {
     const started = await api("/api/audits", { method: "POST", body: JSON.stringify({ url: `http://127.0.0.1:${await closedPort()}/` }) });
-    const { id } = (await started.json()) as { id: string };
+    const { id, deleteCode } = (await started.json()) as { id: string; deleteCode: string };
     const job = await waitFor(id, (j) => j.status === "queued" || j.status === "running");
     assert.equal(job.status, "error");
     assert.equal(job.error?.kind, "unreachable");
+    failedId = id;
+    failedCode = deleteCode;
   });
 
   it("refuses a second concurrent analysis from the same client", async () => {
@@ -164,10 +189,19 @@ describe("UXAudit server", () => {
     await waitFor(id, (j) => j.status === "queued" || j.status === "running");
   });
 
-  it("deletes audits", async () => {
-    assert.equal((await api(`/api/audits/${auditId}`, { method: "DELETE" })).status, 200);
+  it("deletes an audit only with the code given to the browser that started it", async () => {
+    const del = (id: string, code?: string) =>
+      api(`/api/audits/${id}`, { method: "DELETE", headers: code === undefined ? {} : { "x-delete-code": code } });
+    assert.equal((await del(auditId)).status, 403, "no code");
+    assert.equal((await del(auditId, "0".repeat(32))).status, 403, "wrong code");
+    assert.equal((await del(auditId, "not-a-code")).status, 403, "malformed code");
+    assert.equal((await del(auditId, failedCode)).status, 403, "another audit's code");
+    assert.equal((await api(`/api/audits/${auditId}`)).status, 200, "still there after refused deletes");
+    assert.equal((await del(auditId, auditCode)).status, 200);
     assert.equal((await api(`/api/audits/${auditId}`)).status, 404);
-    assert.equal((await api(`/api/audits/000000000000000000000000`, { method: "DELETE" })).status, 404);
+    assert.equal((await del(auditId, auditCode)).status, 404, "already gone");
+    assert.equal((await del(failedId, failedCode)).status, 200, "a failed audit can be cleared with its code");
+    assert.equal((await del("000000000000000000000000", "0".repeat(32))).status, 404);
   });
 
   it("does not let a client choose its own address through X-Forwarded-For", async () => {
