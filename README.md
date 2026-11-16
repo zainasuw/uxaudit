@@ -75,7 +75,7 @@ npm run typecheck
 ## Safety
 
 - Only public addresses are analyzed. `localhost`, private, link-local and cloud metadata addresses and internal host names are refused, and every request the page itself makes, including redirects and WebSockets, goes through an egress proxy that applies the same rule and pins the resolved address.
-- The browser runs sandboxed in an isolated context per audit with WebRTC restricted, a hard time limit and a time-boxed teardown.
+- The browser runs sandboxed in an isolated context per audit with WebRTC restricted, a hard time limit and a time-boxed teardown. If the host cannot run Chromium's sandbox, the server says so at startup and in its logs; `CHROMIUM_SANDBOX=1` makes it refuse to start instead.
 - Nothing from a page or from the AI is ever rendered as HTML; all of it is inserted as text. Page content is sent to the model as data, not as instructions, and the model's answer must match a strict shape before it is used.
 - The server sets a Content Security Policy, rejects cross-origin requests, accepts only small JSON bodies, uses unguessable audit ids and never lists audits. The API key and the reviewer instruction live only in server environment variables.
 

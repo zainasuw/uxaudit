@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   test:
-    # Pinned: playwright 1.58.2 has no build for Ubuntu 26.04, which ubuntu-latest is moving to.
+    # Pinned so a runner-image change cannot break the browser install on its own.
     # Move together with a playwright upgrade (and the matching Dockerfile tag).
     runs-on: ubuntu-24.04
     timeout-minutes: 20

@@ -40,8 +40,15 @@ export interface AnalyzeOptions {
   navigationTimeoutMs?: number;
   /** Hard ceiling for the whole audit; the browser contexts are torn down when it passes. */
   deadlineMs?: number;
-  chromiumSandbox?: boolean;
+  /** Chromium's own sandbox; see SandboxMode. Defaults to `true`. */
+  chromiumSandbox?: SandboxMode;
 }
+
+/**
+ * `true`: the sandbox is on; on a host that cannot run it, fall back once, with a warning.
+ * `"required"`: the sandbox is on, or the launch fails. `false`: off.
+ */
+export type SandboxMode = boolean | "required";
 
 export class AnalyzeError extends Error {
   constructor(message: string, public kind: "blocked" | "unreachable" | "timeout" | "failed") {
@@ -78,35 +85,66 @@ function browserEnv(): Record<string, string> {
   return env;
 }
 
-async function launchChromium(proxyUrl: string, sandbox: boolean): Promise<Browser> {
+const CHROMIUM_ARGS = [
+  "--webrtc-ip-handling-policy=disable_non_proxied_udp",
+  "--force-webrtc-ip-handling-policy",
+  "--disable-dev-shm-usage",
+];
+
+/** Whether Chromium's sandbox came up the last time the browser was launched. */
+let sandboxState: "on" | "off" | "unknown" = "unknown";
+export function chromiumSandboxState(): "on" | "off" | "unknown" {
+  return sandboxState;
+}
+
+async function launchChromium(proxyUrl: string, sandbox: SandboxMode): Promise<Browser> {
   const options = {
     headless: true,
     handleSIGINT: false,
     env: browserEnv(),
     // "<-loopback>" forces even 127.0.0.1 through the proxy; Chromium would otherwise bypass it.
     proxy: { server: proxyUrl, bypass: "<-loopback>" },
-    args: [
-      "--webrtc-ip-handling-policy=disable_non_proxied_udp",
-      "--force-webrtc-ip-handling-policy",
-      "--disable-features=WebRtcAllowInputVolumeAdjustment",
-      "--disable-dev-shm-usage",
-    ],
+    args: CHROMIUM_ARGS,
   };
-  if (!sandbox) return chromium.launch({ ...options, chromiumSandbox: false });
+  if (sandbox === false) {
+    sandboxState = "off";
+    return chromium.launch({ ...options, chromiumSandbox: false });
+  }
   try {
-    return await chromium.launch({ ...options, chromiumSandbox: true });
+    const browser = await chromium.launch({ ...options, chromiumSandbox: true });
+    sandboxState = "on";
+    return browser;
   } catch (err) {
-    // Containers without user namespaces cannot start the Chromium sandbox at
-    // all. Fall back once, and say so, rather than refusing to run.
+    const reason = err instanceof Error ? err.message.split("\n")[0] : String(err);
+    if (sandbox === "required") {
+      throw new Error(`The Chromium sandbox could not be enabled on this host (${reason}) and CHROMIUM_SANDBOX=1 requires it. Fix the host, or set CHROMIUM_SANDBOX=0 to accept running without it.`);
+    }
+    // Containers without user namespaces cannot start the Chromium sandbox at all. Fall back
+    // once, loudly, rather than refusing to run; CHROMIUM_SANDBOX=1 makes it refuse instead.
+    sandboxState = "off";
     if (!sandboxWarned) {
       sandboxWarned = true;
-      console.warn(`uxaudit: the Chromium sandbox could not be enabled on this host (${err instanceof Error ? err.message.split("\n")[0] : String(err)}); running without it. The container is the isolation boundary.`);
+      console.warn(`uxaudit: WARNING: the Chromium sandbox could not be enabled on this host (${reason}); running WITHOUT it. The container is the only isolation boundary. Set CHROMIUM_SANDBOX=1 to refuse to run in this state.`);
     }
     return chromium.launch({ ...options, chromiumSandbox: false });
   }
 }
 
-async function getBrowser(proxyUrl: string, sandbox: boolean): Promise<Browser> {
+/**
+ * Checks once, without opening any page or touching the network, whether this host can run
+ * Chromium's sandbox, so the answer is in the logs at startup instead of after the first audit.
+ */
+export async function probeChromiumSandbox(): Promise<boolean> {
+  try {
+    const browser = await chromium.launch({ headless: true, handleSIGINT: false, env: browserEnv(), args: CHROMIUM_ARGS, chromiumSandbox: true });
+    await browser.close();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function getBrowser(proxyUrl: string, sandbox: SandboxMode): Promise<Browser> {
   if (browserPromise && browserProxy !== proxyUrl) {
     await closeBrowser();
   }
