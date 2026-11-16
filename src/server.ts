@@ -45,7 +45,8 @@ export interface ServerOptions {
   geminiApiKey?: string;
   geminiModel?: string;
   limits?: Partial<Limits>;
-  chromiumSandbox?: boolean;
+  /** Chromium's own sandbox: on (default, falling back with a warning if the host cannot run it), "required", or off. */
+  chromiumSandbox?: boolean | "required";
   /** Tests only: hostnames allowed to resolve to loopback. */
   allowPrivateHosts?: string[];
   lookup?: Lookup;

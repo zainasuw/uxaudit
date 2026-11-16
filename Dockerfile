@@ -1,5 +1,5 @@
 # Chromium plus every system library Playwright needs, matching the pinned Playwright version.
-FROM mcr.microsoft.com/playwright:v1.58.2-noble
+FROM mcr.microsoft.com/playwright:v1.65.1-noble
 
 # Keep this tag equal to the playwright version in package.json.
 # Defaults: port 7860 (what Hugging Face Spaces expect). TRUST_PROXY is off, so client addresses
@@ -7,7 +7,8 @@ FROM mcr.microsoft.com/playwright:v1.58.2-noble
 # means every visitor shares the proxy's address, so the per-visitor limits apply to the whole site;
 # set TRUST_PROXY=1 only when exactly one reverse proxy sits in front and appends the real client
 # to X-Forwarded-For (on a Docker Space, as a Space variable).
-# The Chromium sandbox stays on; the app falls back (and logs) only if the host cannot run it.
+# The Chromium sandbox stays on; the app falls back (and warns at startup and in the logs) only if the
+# host cannot run it. Set CHROMIUM_SANDBOX=1 to refuse to start in that case instead.
 ENV NODE_ENV=production \
     PORT=7860 \
     TRUST_PROXY=0 \
