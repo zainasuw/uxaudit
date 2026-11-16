@@ -1,9 +1,8 @@
 # Hugging Face Space runtime only: provides the Node.js binary that app.py uses to run UXAudit,
 # plus the small relay that fronts it on the Space's port (these three ship with Gradio anyway).
 nodejs-wheel==22.20.0
-fastapi==0.163.1
-httpx==0.28.1
-uvicorn==0.54.0
+fastapi
+httpx
+uvicorn
 gradio==6.30.0
-# Not pinned: the Space builder installs its own spaces version alongside this file, and a different pin here makes pip refuse the build.
 spaces
