@@ -5,4 +5,5 @@ fastapi==0.163.1
 httpx==0.28.1
 uvicorn==0.54.0
 gradio==6.30.0
-spaces==0.52.0
+# Not pinned: the Space builder installs its own spaces version alongside this file, and a different pin here makes pip refuse the build.
+spaces
